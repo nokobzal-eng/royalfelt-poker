@@ -15,9 +15,6 @@
     'Snir_B', 'Lihi_P', 'Yarden.k', 'Assaf99', 'Dudu_Hfa', 'Nati.R', 'Yoni_TA', 'Sagi_M', 'Tal_C', 'Erez_88',
     'AceHunter', 'RiverRat', 'NightOwl', 'TheGrinder', 'Maverick', 'IceCold', 'Bishop', 'Ronin',
   ];
-  // Knockout jackpot: whoever busts a player gets a prize (cash: big blinds onto the stack, tournament: share of the buy-in).
-  const KO_CASH_BB = 20;
-  const KO_TOUR_FRAC = 0.5;
   // High-hand bonus: winning at showdown with a straight or better (using your own cards) multiplies what you won.
   // The multiplier is the total, so x2 means an extra pot on top. Cash: onto the stack, capped. Tournament: to the bankroll.
   const HIGH_HAND_MULT = { 4: 2, 5: 3, 6: 5, 7: 10, 8: 15, royal: 20 };
@@ -178,7 +175,6 @@
     onHandEnd(t, res) {
       this.recordStats(t, res);
       this.highHands(t, res);
-      this.knockouts(t, res);
       if (t.tournament) return this.onTournamentHand(t.tournament, t, res);
       const total = res.winners.reduce((a, w) => a + w.amount, 0);
       t.potHistory.push(total);
@@ -267,25 +263,6 @@
           w.jackpot = { label: jp.label, amount };
           t.addLog(`🎰 ג'קפוט! ${s.name} עם ${jp.label}: ${amount.toLocaleString()}`);
         }
-      }
-      this.save();
-    }
-
-    // Every player who goes bust pays a jackpot to the biggest winner of that hand.
-    knockouts(t, res) {
-      const busted = t.seats.filter((s) => s && s.inHand && s.stack === 0);
-      if (!busted.length || !res.winners.length) return;
-      const top = res.winners.slice().sort((a, b) => b.amount - a.amount)[0];
-      const w = t.seats[top.seat];
-      if (!w || busted.includes(w)) return;
-      const tr = t.tournament;
-      for (const b of busted) {
-        const amount = tr ? Math.round(tr.buyIn * KO_TOUR_FRAC) : KO_CASH_BB * t.bigBlind;
-        if (tr) {
-          if (!w.isBot) { this.bankrolls[w.id] = this.chips(w.id) + amount; this.sendMe(w.id); }
-        } else w.stack += amount;
-        t.addLog(`💥 ג'קפוט נוקאאוט: ${w.name} הוציא את ${b.name} וזכה ב־${amount.toLocaleString()}`);
-        this.toTable(t, 'knockout', { to: w.name, toSeat: top.seat, from: b.name, amount, tournament: !!tr });
       }
       this.save();
     }

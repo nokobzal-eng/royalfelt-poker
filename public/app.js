@@ -105,15 +105,6 @@
     if (a.status === 'approved' && creds) { window.FX.play('win'); doLogin(creds); }
     if (a.status === 'blocked') { me = null; creds = null; show('login'); $('login-err').textContent = 'הגישה שלך נחסמה על ידי המנהל'; }
   });
-  conn.on('knockout', (k) => {
-    setTimeout(() => {
-      if (!view || !me || me.tableId !== view.id) return;
-      const wrap = $('table-wrap');
-      window.FX.banner(wrap, '💥 ג\'קפוט נוקאאוט', `${k.to} הוציא את ${k.from} · +${fmt(k.amount)}`, 'big');
-      window.FX.confetti(wrap, 1.4, ['#ff6b35', '#f2c14e', '#ffe08a', '#e0283c']);
-      window.FX.play('big');
-    }, 2600);
-  });
   conn.on('pcreated', (d) => { window.FX.play('win'); toast(`השולחן "${d.name}" נפתח. לחץ "הזמן חברים" ושלח את הקישור`); });
   conn.on('tstart', (d) => { window.FX.play('allin'); toast(`הטורניר ${d.name} מתחיל! בהצלחה`); });
   conn.on('tlevel', (d) => {
@@ -281,7 +272,7 @@
           <div>קופה ממוצעת<b>${fmt(t.avgPot)}</b></div>
         </div>
         <div class="seatbar">${bar}</div>
-        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 💥 ג'קפוט נוקאאוט · 🎰 ג'קפוט ידיים</div>
+        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 🎰 ג'קפוט על רביעייה ומעלה</div>
         <div class="trow-actions">
           ${t.code ? `<button class="btn btn-ghost" data-invite="${t.code}" data-iname="${esc(t.name)}">📨 הזמן</button>` : ''}
           <button class="btn btn-ghost" data-watch="${t.id}">צפה</button>
@@ -318,7 +309,7 @@
         <div>סטאק<b>${fmt(t.startStack)}</b></div>
       </div>
       <div class="muted small">${pays}</div>
-      <div class="muted small">${t.maxSeats} שחקנים · בליינדים עולים כל ${t.levelMin} דק' · 💥 ג'קפוט נוקאאוט</div>
+      <div class="muted small">${t.maxSeats} שחקנים · בליינדים עולים כל ${t.levelMin} דק'</div>
       <div class="tour-status ${t.status}">${status}</div>
       <div class="trow-actions">${actions}</div>
     </div>`;
