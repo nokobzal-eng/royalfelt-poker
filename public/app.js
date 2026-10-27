@@ -50,14 +50,21 @@
         load() { try { return JSON.parse(ls.getItem('rf_bankrolls')) || {}; } catch (e) { return {}; } },
         save(map) { try { ls.setItem('rf_bankrolls', JSON.stringify(map)); } catch (e) { /* storage unavailable */ } },
       },
+      allowRefill: true,
     });
     return {
       mode: 'offline',
       on: (e, f) => (handlers[e] = handlers[e] || []).push(f),
-      emit: (e, d) => myId && lobby.handle(myId, e, d),
+      emit(e, d) {
+        if (!myId) return;
+        if (e === 'avatar') { lobby.setAvatar(myId, d); return lobby.sendMe(myId); }
+        lobby.handle(myId, e, d);
+      },
       login(c, cb) {
         myId = 'u:' + window.PokerLobby.Lobby.cleanName(c.name);
-        const r = lobby.connect({ id: myId, name: c.name });
+        let avatar = null;
+        try { avatar = ls.getItem('rf_avatar'); } catch (e) { /* storage unavailable */ }
+        const r = lobby.connect({ id: myId, name: c.name, avatar });
         if (r.error) myId = null;
         cb(r.error ? r : { status: 'approved' });
       },
@@ -66,6 +73,7 @@
   }
 
   const conn = makeConn();
+  if ('serviceWorker' in navigator && conn.mode === 'online') navigator.serviceWorker.register('sw.js').catch(() => {});
   // Sound toggle in the top bar.
   const muteBtn = $('mute');
   const syncMute = () => { muteBtn.textContent = window.FX.isMuted() ? '🔇' : '🔊'; };
@@ -88,6 +96,15 @@
   conn.on('auth', (a) => {
     if (a.status === 'approved' && creds) { window.FX.play('win'); doLogin(creds); }
     if (a.status === 'blocked') { me = null; creds = null; show('login'); $('login-err').textContent = 'הגישה שלך נחסמה על ידי המנהל'; }
+  });
+  conn.on('knockout', (k) => {
+    setTimeout(() => {
+      if (!view || !me || me.tableId !== view.id) return;
+      const wrap = $('table-wrap');
+      window.FX.banner(wrap, '💥 ג\'קפוט נוקאאוט', `${k.to} הוציא את ${k.from} · +${fmt(k.amount)}`, 'big');
+      window.FX.confetti(wrap, 1.4, ['#ff6b35', '#f2c14e', '#ffe08a', '#e0283c']);
+      window.FX.play('big');
+    }, 2600);
   });
   conn.on('tstart', (d) => { window.FX.play('allin'); toast(`הטורניר ${d.name} מתחיל! בהצלחה`); });
   conn.on('tlevel', (d) => {
@@ -172,6 +189,9 @@
     $('wallet').classList.toggle('hidden', !me);
     $('wallet-amt').textContent = fmt(me && me.chips);
     $('me-name').textContent = me ? me.name : '';
+    $('me-pic').classList.toggle('hidden', !me);
+    if (me) $('me-pic').innerHTML = avatarHtml(me.name, me.avatar);
+    $('refill').textContent = online ? 'בקש צ\'יפים מהמנהל' : 'מלא מחדש את הקופה';
     $('refill').classList.toggle('hidden', !me || me.chips >= 2000);
   }
 
@@ -183,7 +203,31 @@
     [...$('game-tabs').children].forEach((x) => x.classList.toggle('active', x === b));
     renderLobby();
   });
-  $('refill').addEventListener('click', () => conn.emit('refill'));
+  $('refill').addEventListener('click', () => conn.emit(online ? 'chipreq' : 'refill'));
+
+  // ---------- profile picture ----------
+  $('me-pic').addEventListener('click', () => $('pic-input').click());
+  $('pic-input').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f || !/^image\//.test(f.type)) return;
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      // Center-crop to a square and shrink, so it stays small enough to send.
+      const S = 160, c = document.createElement('canvas');
+      c.width = c.height = S;
+      const side = Math.min(img.width, img.height);
+      c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, S, S);
+      URL.revokeObjectURL(url);
+      const data = c.toDataURL('image/jpeg', 0.82);
+      if (!online) keep('rf_avatar', data);
+      conn.emit('avatar', data);
+      toast('התמונה עודכנה');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); toast('לא הצלחתי לקרוא את התמונה'); };
+    img.src = url;
+  });
 
   $('mode-tabs').addEventListener('click', (e) => {
     const b = e.target.closest('button');
@@ -198,8 +242,7 @@
     $('tour-list').classList.toggle('hidden', lobbyMode !== 'tour');
     const rows = lobbyData.cash.filter((t) => filter === 'all' || t.game === filter);
     $('table-list').innerHTML = rows.map((t) => {
-      const bar = Array.from({ length: t.maxSeats }, (_, i) =>
-        `<i class="${i < t.humans ? 'human' : i < t.players ? 'bot' : ''}"></i>`).join('');
+      const bar = Array.from({ length: t.maxSeats }, (_, i) => `<i class="${i < t.players ? 'human' : ''}"></i>`).join('');
       return `<div class="trow">
         <div class="trow-top"><span class="tname">${esc(t.name)}</span><span class="gtag ${t.game}">${t.gameLabel}</span></div>
         <div class="tstats">
@@ -208,7 +251,7 @@
           <div>קופה ממוצעת<b>${fmt(t.avgPot)}</b></div>
         </div>
         <div class="seatbar">${bar}</div>
-        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · ${t.humans} חברים מחוברים · 🎁 מיסטרי באונטי</div>
+        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 🎁 מיסטרי באונטי · 💥 ג'קפוט נוקאאוט</div>
         <div class="trow-actions">
           <button class="btn btn-ghost" data-watch="${t.id}">צפה</button>
           <button class="btn btn-primary" data-join="${t.id}">שב לשחק</button>
@@ -368,10 +411,11 @@
     return out;
   }
 
-  function avatarHtml(name, isBot) {
+  function avatarHtml(name, avatar) {
+    if (avatar) return `<div class="avatar pic"><img src="${esc(avatar)}" alt=""></div>`;
     let h = 0;
     for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
-    return `<div class="avatar" style="--hue:${h}">${isBot ? '🤖' : esc(name[0].toUpperCase())}</div>`;
+    return `<div class="avatar" style="--hue:${h}">${esc(name[0].toUpperCase())}</div>`;
   }
 
   function cardHtml(c, cls) {
@@ -438,7 +482,7 @@
         <div class="hole n${s.cards.length}">${hole}</div>
         <div class="plate">${tag}
           ${isBounty ? `<div class="bounty-badge" title="מיסטרי באונטי: מי שינצח את ${esc(s.name)} בשואודאון לוקח פרס מוסתר">🎁</div>` : ''}
-          <div class="pinfo">${avatarHtml(s.name, s.isBot)}
+          <div class="pinfo">${avatarHtml(s.name, s.avatar)}
             <div class="ptext">
               <div class="pname">${esc(s.name)}</div>
               <div class="pstack">${s.allIn && s.stack === 0 ? 'אול-אין' : fmt(s.stack)}</div>
@@ -598,6 +642,7 @@
     renderAdmin();
   });
   conn.on('admin:request', (r) => { window.FX.play('turn'); toast(`${r.name} (${r.phone}) מבקש להיכנס`); });
+  conn.on('admin:chips', (r) => { window.FX.play('turn'); toast(`${r.name} מבקש צ'יפים (יש לו ${fmt(r.chips)})`); });
   $('admin-btn').addEventListener('click', () => { renderAdmin(); $('admin').classList.remove('hidden'); });
   $('admin-close').addEventListener('click', () => $('admin').classList.add('hidden'));
   function renderAdmin() {
@@ -605,19 +650,21 @@
     $('admin-list').innerHTML = adminData.users.map((u) => `<div class="arow ${u.waiting ? 'waiting' : ''}">
       <div class="ainfo"><b>${esc(u.name)}</b>${u.isAdmin ? ' <span class="pill">מנהל</span>' : ''}
         <div class="muted small" dir="ltr">${esc(u.phone)}</div>
-        <div class="small"><span class="pill ${u.status}">${label[u.status]}</span>${u.newDevice ? ' <span class="pill pending">מכשיר חדש</span>' : ''} · ${fmt(u.chips)} צ'יפים</div>
+        <div class="small"><span class="pill ${u.status}">${label[u.status]}</span>${u.newDevice ? ' <span class="pill pending">מכשיר חדש</span>' : ''}${u.wantsChips ? ' <span class="pill pending">מבקש צ\'יפים</span>' : ''} · ${fmt(u.chips)} צ'יפים</div>
       </div>
       <div class="aact">
         ${u.waiting ? `<button class="btn btn-primary" data-aop="approve" data-uid="${u.uid}">אשר</button>` : ''}
         ${!u.isAdmin && u.status !== 'blocked' ? `<button class="btn btn-ghost" data-aop="block" data-uid="${u.uid}">חסום</button>` : ''}
         ${u.status === 'blocked' ? `<button class="btn btn-ghost" data-aop="unblock" data-uid="${u.uid}">בטל חסימה</button>` : ''}
-        ${u.status === 'approved' ? `<button class="btn btn-ghost" data-aop="chips" data-uid="${u.uid}">+10,000</button>` : ''}
+        ${u.status === 'approved' ? `<span class="chip-give"><input type="number" step="1000" value="10000" data-amt="${u.uid}" aria-label="כמות צ'יפים"><button class="btn btn-ghost" data-aop="chips" data-uid="${u.uid}">הוסף</button></span>` : ''}
       </div>
     </div>`).join('') || '<div class="muted">אין עדיין חברים רשומים</div>';
   }
   $('admin-list').addEventListener('click', (e) => {
     const b = e.target.closest('[data-aop]');
-    if (b) conn.emit('admin', { op: b.dataset.aop, uid: b.dataset.uid, amount: 10000 });
+    if (!b) return;
+    const amt = document.querySelector(`[data-amt="${b.dataset.uid}"]`);
+    conn.emit('admin', { op: b.dataset.aop, uid: b.dataset.uid, amount: amt ? Number(amt.value) : 0 });
   });
 
   let toastTimer;

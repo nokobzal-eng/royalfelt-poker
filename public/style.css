@@ -70,7 +70,7 @@ input { font: inherit; }
 .tstats b { display: block; font-size: 15px; direction: ltr; text-align: right; }
 .seatbar { display: flex; gap: 3px; }
 .seatbar i { flex: 1; height: 5px; border-radius: 3px; background: #252a36; }
-.seatbar i.bot { background: #5d6680; }
+
 .seatbar i.human { background: var(--green); }
 .trow-actions { display: flex; gap: 8px; }
 .trow-actions .btn { flex: 1; }
@@ -243,3 +243,22 @@ input { font: inherit; }
 #tres-text { font-size: 17px; margin-top: 6px; }
 .tres-card .modal-actions { justify-content: center; }
 @media (max-width: 900px) { .tour-hud { font-size: 11px; gap: 6px; top: -4px; } }
+
+/* profile pictures */
+.avatar.pic { padding: 0; overflow: hidden; background: #222; }
+.avatar.pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.me-pic { background: none; border: 0; padding: 0; cursor: pointer; border-radius: 50%; }
+.me-pic .avatar { width: 32px; height: 32px; box-shadow: 0 0 0 2px var(--gold); }
+.chip-give { display: inline-flex; gap: 4px; align-items: center; }
+.chip-give input { width: 86px; background: var(--panel); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 6px; direction: ltr; }
+/* phones with a notch, when installed to the home screen */
+body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+@media (max-width: 520px) {
+  .topbar { padding: 8px 10px; gap: 8px; }
+  .brand { font-size: 16px; white-space: nowrap; }
+  .top-right { gap: 6px; min-width: 0; }
+  .me-name { display: none; }
+  .wallet { padding: 4px 9px; font-size: 13px; }
+  .admin-btn { padding: 6px 9px; }
+}
+html, body { overflow-x: hidden; }

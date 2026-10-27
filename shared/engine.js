@@ -132,7 +132,7 @@
       this.minBuyIn = opts.minBuyIn || this.bigBlind * 40;
       this.maxBuyIn = opts.maxBuyIn || this.bigBlind * 100;
       this.turnMs = opts.turnMs || 20000;
-      this.botDelay = opts.botDelay || [700, 1800];
+      this.botDelay = opts.botDelay || [1100, 3600];
       this.nextHandMs = opts.nextHandMs == null ? 4000 : opts.nextHandMs;
       this.streetMs = opts.streetMs == null ? 900 : opts.streetMs;
       this.hooks = hooks || {};
@@ -159,7 +159,7 @@
       if (seatIdx == null) seatIdx = this.seats.findIndex((s) => !s);
       if (seatIdx < 0 || seatIdx >= this.maxSeats || this.seats[seatIdx]) return null;
       this.seats[seatIdx] = {
-        id: player.id, name: player.name, isBot: !!player.isBot, style: player.style || null,
+        id: player.id, name: player.name, isBot: !!player.isBot, style: player.style || null, avatar: player.avatar || null,
         stack: buyIn, cards: [], bet: 0, total: 0, inHand: false, folded: false, allIn: false,
         acted: false, lastAction: '', left: false, sitOut: false, showCards: false,
       };
@@ -519,7 +519,7 @@
         bountySeat: this.bounty ? this.seats.findIndex((s) => s && s.id === this.bounty.id) : -1,
         bountyHandsLeft: this.bounty ? this.bounty.handsLeft : 0,
         seats: this.seats.map((s, i) => s && {
-          name: s.name, isBot: s.isBot, stack: s.stack, bet: s.bet, folded: s.folded, allIn: s.allIn,
+          name: s.name, avatar: s.avatar || null, stack: s.stack, bet: s.bet, folded: s.folded, allIn: s.allIn,
           inHand: s.inHand, lastAction: s.lastAction, left: s.left, away: !!s.away,
           cards: s.inHand && !s.folded ? ((i === me || s.showCards) ? s.cards : s.cards.map(() => '??')) : [],
         }),
@@ -536,7 +536,6 @@
         id: this.id, name: this.name, smallBlind: this.smallBlind, bigBlind: this.bigBlind, maxSeats: this.maxSeats,
         game: this.game.code, gameLabel: this.game.label, minBuyIn: this.minBuyIn, maxBuyIn: this.maxBuyIn,
         players: this.seats.filter((s) => s && !s.left).length,
-        humans: this.seats.filter((s) => s && !s.left && !s.isBot).length,
         avgPot: this.avgPot || 0, handNo: this.handNo, mysteryBounty: this.mysteryBounty,
       };
     }

@@ -16,6 +16,14 @@ const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/shared', express.static(path.join(__dirname, 'shared')));
 app.get('/healthz', (req, res) => res.send('ok'));
+// Profile pictures are kept with the member record as small data URLs and served as images.
+app.get('/avatar/:uid', (req, res) => {
+  const u = auth.users[req.params.uid];
+  const m = u && u.avatar && /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(u.avatar);
+  if (!m) return res.status(404).end();
+  res.set('Content-Type', m[1]).set('Cache-Control', 'public, max-age=31536000, immutable');
+  res.send(Buffer.from(m[2], 'base64'));
+});
 const server = http.createServer(app);
 const io = new Server(server);
 
@@ -53,6 +61,9 @@ const lobby = new Lobby({
 });
 
 const pidOf = (uid) => 'u:' + uid;
+// The version in the query string busts the browser cache when the picture changes.
+const avatarUrl = (u) => (u.avatar ? `/avatar/${u.uid}?v=${u.avatarAt || 0}` : null);
+const MAX_AVATAR = 150000;
 const admins = () => Object.values(auth.users).filter((u) => u.isAdmin).map((u) => pidOf(u.uid));
 
 function adminPush() {
@@ -99,11 +110,34 @@ io.on('connection', (socket) => {
     playerId = id;
     clearTimeout(leaveTimers.get(playerId));
     reply({ status: 'approved', token: r.token, isAdmin: !!user.isAdmin });
-    lobby.connect({ id, name: user.name });
+    lobby.connect({ id, name: user.name, avatar: avatarUrl(user) });
     if (user.isAdmin) adminPush();
   });
 
-  for (const ev of ['join', 'watch', 'leave', 'action', 'back', 'rebuy', 'refill', 'chat', 'tregister', 'tunregister', 'tstart']) {
+  socket.on('avatar', (data) => {
+    if (!user) return;
+    if (data && (typeof data !== 'string' || data.length > MAX_AVATAR || !/^data:image\/(jpeg|png|webp);base64,/.test(data))) {
+      return socket.emit('error', 'התמונה גדולה מדי או לא נתמכת');
+    }
+    auth.setAvatar(user.uid, data || null);
+    lobby.setAvatar(playerId, avatarUrl(user));
+    lobby.sendMe(playerId);
+  });
+
+  // Only the admin adds chips; a member can ask for more.
+  socket.on('chipreq', () => {
+    if (!user) return;
+    const now = Date.now();
+    if (user.chipReqAt && now - user.chipReqAt < 60000) return socket.emit('error', 'הבקשה כבר נשלחה למנהל');
+    user.chipReqAt = now;
+    for (const pid of admins()) for (const sid of socketsOf.get(pid) || []) {
+      io.to(sid).emit('admin:chips', { name: user.name, chips: lobby.chips(playerId) });
+    }
+    adminPush();
+    socket.emit('error', 'הבקשה נשלחה למנהל');
+  });
+
+  for (const ev of ['join', 'watch', 'leave', 'action', 'back', 'rebuy', 'chat', 'tregister', 'tunregister', 'tstart']) {
     socket.on(ev, (data) => { if (playerId) lobby.handle(playerId, ev, data); });
   }
 
@@ -125,7 +159,9 @@ io.on('connection', (socket) => {
     else if (op === 'remove') { if (auth.remove(uid)) kick(uid); }
     else if (op === 'chips') {
       const pid = pidOf(uid);
-      lobby.bankrolls[pid] = Math.max(0, lobby.chips(pid) + Math.round(Number(msg.amount) || 0));
+      const amount = Math.max(-1e9, Math.min(1e9, Math.round(Number(msg.amount) || 0)));
+      lobby.bankrolls[pid] = Math.max(0, lobby.chips(pid) + amount);
+      if (auth.users[uid]) delete auth.users[uid].chipReqAt;
       lobby.save();
       lobby.sendMe(pid);
     }

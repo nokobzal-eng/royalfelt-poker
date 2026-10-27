@@ -2,9 +2,17 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Royal Felt Poker</title>
 <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0d1017">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RoyalFelt">
 </head>
 <body>
 <div id="app" dir="rtl" lang="he">
@@ -14,7 +22,9 @@
       <button id="admin-btn" class="btn btn-ghost admin-btn hidden">ניהול <span id="admin-badge" class="badge hidden">0</span></button>
       <button id="mute" class="icon-btn" title="צלילים">🔊</button>
       <div id="wallet" class="wallet hidden"><span class="chip-ico"></span><span id="wallet-amt">0</span></div>
+      <button id="me-pic" class="me-pic hidden" title="החלף תמונת פרופיל"></button>
       <span id="me-name" class="me-name"></span>
+      <input id="pic-input" type="file" accept="image/*" hidden>
     </div>
   </header>
 
@@ -65,7 +75,7 @@
     <div class="table-list hidden" id="tour-list"></div>
     <div class="lobby-foot">
       <button id="refill" class="btn btn-ghost hidden">מלא מחדש את הקופה</button>
-      <span class="muted small">🤖 מסמן בוט. הבוטים תמיד יושבים בשולחנות ומפנים מקום כשחברים מצטרפים.</span>
+      <span class="muted small">לחץ על העיגול ליד השם שלך כדי להעלות תמונה. השולחנות פעילים מסביב לשעון, וחלק מהשחקנים הם שחקני AI של הבית.</span>
     </div>
   </section>
 

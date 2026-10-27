@@ -80,6 +80,15 @@ class Auth {
     return u;
   }
 
+  setAvatar(uid, dataUrl) {
+    const u = this.users[uid];
+    if (!u) return null;
+    u.avatar = dataUrl || null;
+    u.avatarAt = Date.now();
+    this.save();
+    return u;
+  }
+
   block(uid) {
     const u = this.users[uid];
     if (!u || u.isAdmin) return null;
@@ -111,7 +120,7 @@ class Auth {
       .map((u) => ({
         uid: u.uid, name: u.name, phone: u.phone, status: u.status, isAdmin: !!u.isAdmin,
         waiting: u.pendingTokens.length > 0, newDevice: u.pendingTokens.length > 0 && u.tokens.length > 0,
-        requestedAt: u.requestedAt || u.createdAt,
+        requestedAt: u.requestedAt || u.createdAt, wantsChips: !!u.chipReqAt,
       }))
       .sort((a, b) => (b.waiting - a.waiting) || (b.requestedAt - a.requestedAt));
   }

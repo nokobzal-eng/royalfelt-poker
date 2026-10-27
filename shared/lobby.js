@@ -7,13 +7,17 @@
   const Bot = isNode ? require('./bot') : global.PokerBot;
 
   const START_CHIPS = 20000;
+  // House players use ordinary nicknames, like anyone else at the table.
   const BOT_NAMES = [
-    'Viper', 'Nitro', 'Shark_IL', 'AceHunter', 'RiverRat', 'IceCold', 'Bluffmaster', 'TheGrinder',
-    'Maverick', 'Phantom', 'NightOwl', 'Cobra', 'Hellmuth_Jr', 'Zeus', 'Raptor', 'Solver_X', 'Ghost', 'Titan',
-    'DeepStack', 'Kraken', 'Falcon', 'Blade', 'Merlin', 'Oracle',
-    'Spartan', 'Wolfpack', 'Joker', 'Vortex', 'Stealth', 'Nomad', 'Bishop', 'Sniper', 'Atlas', 'Rogue', 'Onyx', 'Sphinx',
-    'Hydra', 'Panther', 'Diesel', 'Comet', 'Jaguar', 'Saber', 'Tempest', 'Ronin', 'Apex', 'Gambit', 'Maestro', 'Shadow',
+    'dani_k88', 'yossi.tlv', 'MayaB', 'avi777', 'Noam_P', 'roni.ash', 'Tomer91', 'ShiraG', 'eyal_ace', 'BenBaruch',
+    'liorz', 'OrenK', 'gal_river', 'idan.s', 'MoshikTLV', 'Yael_H', 'nir_poker', 'amitush', 'Kobi_B', 'Dror77',
+    'itay.m', 'Hadas_R', 'Shlomi_G', 'eli.n', 'Ofir23', 'Ziv_K', 'Adi_L', 'Raz_M', 'Gilad.T', 'Omer_88',
+    'Snir_B', 'Lihi_P', 'Yarden.k', 'Assaf99', 'Dudu_Hfa', 'Nati.R', 'Yoni_TA', 'Sagi_M', 'Tal_C', 'Erez_88',
+    'AceHunter', 'RiverRat', 'NightOwl', 'TheGrinder', 'Maverick', 'IceCold', 'Bishop', 'Ronin',
   ];
+  // Knockout jackpot: whoever busts a player gets a prize (cash: big blinds onto the stack, tournament: share of the buy-in).
+  const KO_CASH_BB = 20;
+  const KO_TOUR_FRAC = 0.5;
   const STYLE_KEYS = Object.keys(Bot.STYLES);
 
   const DEFAULT_TABLES = [
@@ -92,6 +96,7 @@
       this.send = opts.send;
       this.store = opts.store || null; // { load(): {playerId: chips}, save(map) }
       this.tableOpts = opts.tableOpts || {};
+      this.allowRefill = !!opts.allowRefill; // free bankroll refills (offline demo); online only the admin adds chips
       this.bankrolls = (this.store && this.store.load()) || {};
       this.players = new Map(); // id -> { id, name, tableId }
       this.tables = new Map();
@@ -148,6 +153,7 @@
     }
 
     onHandEnd(t, res) {
+      this.knockouts(t, res);
       if (t.tournament) return this.onTournamentHand(t.tournament, t, res);
       const total = res.winners.reduce((a, w) => a + w.amount, 0);
       t.potHistory.push(total);
@@ -155,6 +161,25 @@
       t.avgPot = Math.round(t.potHistory.reduce((a, b) => a + b, 0) / t.potHistory.length);
       setTimeout(() => this.manageBots(t), 500);
       this.broadcastLobby();
+    }
+
+    // Every player who goes bust pays a jackpot to the biggest winner of that hand.
+    knockouts(t, res) {
+      const busted = t.seats.filter((s) => s && s.inHand && s.stack === 0);
+      if (!busted.length || !res.winners.length) return;
+      const top = res.winners.slice().sort((a, b) => b.amount - a.amount)[0];
+      const w = t.seats[top.seat];
+      if (!w || busted.includes(w)) return;
+      const tr = t.tournament;
+      for (const b of busted) {
+        const amount = tr ? Math.round(tr.buyIn * KO_TOUR_FRAC) : KO_CASH_BB * t.bigBlind;
+        if (tr) {
+          if (!w.isBot) { this.bankrolls[w.id] = this.chips(w.id) + amount; this.sendMe(w.id); }
+        } else w.stack += amount;
+        t.addLog(`💥 ג'קפוט נוקאאוט: ${w.name} הוציא את ${b.name} וזכה ב־${amount.toLocaleString()}`);
+        this.toTable(t, 'knockout', { to: w.name, toSeat: top.seat, from: b.name, amount, tournament: !!tr });
+      }
+      this.save();
     }
 
     // ---- tournaments ----
@@ -228,7 +253,7 @@
       tr.levelEndsAt = Date.now() + tr.levelMs;
       tr.startAt = 0;
       this.tables.set(t.id, t);
-      const entrants = tr.registered.map((id) => ({ id, name: this.nameOf(id) }));
+      const entrants = tr.registered.map((id) => ({ id, name: this.nameOf(id), avatar: (this.players.get(id) || {}).avatar }));
       while (entrants.length < tr.maxSeats) entrants.push(this.botProfile());
       // Random seating.
       for (let i = entrants.length - 1; i > 0; i--) {
@@ -329,6 +354,7 @@
       if (!this.players.has(id)) this.players.set(id, { id, name, tableId: null });
       const p = this.players.get(id);
       p.name = name;
+      if (profile.avatar !== undefined) p.avatar = profile.avatar || null;
       this.names = this.names || {};
       this.names[id] = name;
       this.save();
@@ -337,6 +363,16 @@
       if (t) this.send(id, 'table', this.tableView(t, id));
       else this.send(id, 'lobby', this.lobbyView());
       return { ok: true, id };
+    }
+
+    // url: an image address (or data URL) for the player's picture, null to clear it.
+    setAvatar(id, url) {
+      const p = this.players.get(id);
+      if (p) p.avatar = url || null;
+      for (const t of this.tables.values()) {
+        const i = t.seatOf(id);
+        if (i >= 0) { t.seats[i].avatar = url || null; this.broadcastTable(t); }
+      }
     }
 
     disconnect(id) {
@@ -349,7 +385,7 @@
 
     sendMe(id) {
       const p = this.players.get(id);
-      if (p) this.send(id, 'me', { id, name: p.name, chips: this.chips(id), tableId: p.tableId });
+      if (p) this.send(id, 'me', { id, name: p.name, chips: this.chips(id), tableId: p.tableId, avatar: p.avatar || null });
     }
 
     save() { if (this.store) this.store.save(this.bankrolls); }
@@ -377,7 +413,7 @@
         }
         case 'rebuy': return this.rebuy(id, data.amount);
         case 'refill': {
-          if (this.chips(id) < 2000 && !p.tableId) { this.bankrolls[id] = START_CHIPS; this.save(); }
+          if (this.allowRefill && this.chips(id) < 2000 && !p.tableId) { this.bankrolls[id] = START_CHIPS; this.save(); }
           return this.sendMe(id);
         }
         case 'tregister': return this.tRegister(id, data.id);
@@ -427,7 +463,7 @@
       if (seat != null && t.seats[seat]) seat = null;
       this.bankrolls[id] -= buyIn;
       p.tableId = tableId;
-      t.sit({ id, name: p.name }, seat, buyIn);
+      t.sit({ id, name: p.name, avatar: p.avatar }, seat, buyIn);
       this.save();
       this.sendMe(id);
       this.broadcastLobby();
