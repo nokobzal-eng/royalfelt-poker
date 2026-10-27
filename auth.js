@@ -10,6 +10,8 @@ class Auth {
     this.adminPhone = opts.adminPhone ? Auth.normPhone(opts.adminPhone) : null;
     this.adminPin = opts.adminPin || null;
     try { this.users = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { this.users = {}; }
+    // Only the ADMIN_PHONE number is ever admin.
+    for (const u of Object.values(this.users)) u.isAdmin = !!this.adminPhone && u.phone === this.adminPhone;
     this.saveTimer = null;
   }
 
@@ -36,11 +38,13 @@ class Auth {
   login({ name, phone, token, pin }) {
     phone = Auth.normPhone(phone);
     if (!phone) return { error: 'צריך מספר טלפון תקין' };
+    // Without ADMIN_PHONE nobody may sign in: otherwise whoever came first after a restart would become admin.
+    if (!this.adminPhone) return { error: 'האתר עוד לא מוכן: המנהל צריך להגדיר ADMIN_PHONE ב־Render' };
     name = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 16);
     if (!name) return { error: 'צריך כינוי' };
     let u = this.byPhone(phone);
     if (!u) {
-      const becomesAdmin = this.adminPhone ? phone === this.adminPhone : !this.hasAdmin();
+      const becomesAdmin = phone === this.adminPhone;
       u = {
         uid: crypto.randomBytes(6).toString('hex'), name, phone, isAdmin: becomesAdmin,
         status: becomesAdmin ? 'approved' : 'pending', tokens: [], pendingTokens: [], createdAt: Date.now(),

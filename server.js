@@ -194,5 +194,5 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
   console.log(`Poker server on http://localhost:${PORT}`);
-  console.log(`Admin phone: ${auth.adminPhone ? 'set (' + auth.adminPhone.slice(0, 3) + '…' + auth.adminPhone.slice(-2) + ')' : 'not set, the first member to sign up becomes admin'}; admin PIN: ${auth.adminPin ? 'set' : 'not set'}`);
+  console.log(`Admin phone: ${auth.adminPhone ? 'set (' + auth.adminPhone.slice(0, 3) + '…' + auth.adminPhone.slice(-2) + ')' : 'NOT SET, nobody can sign in until it is'}; admin PIN: ${auth.adminPin ? 'set' : 'not set'}`);
 });
