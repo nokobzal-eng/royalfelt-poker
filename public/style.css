@@ -276,3 +276,6 @@ html, body { overflow-x: hidden; }
 .pform { display: grid; gap: 10px; }
 .pform label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .pform input, .pform select { background: var(--panel); color: var(--text, #fff); border: 1px solid var(--line); border-radius: 8px; padding: 9px; font: inherit; }
+
+.pin-form { display: flex; gap: 8px; justify-content: center; margin: 12px 0; }
+.pin-form input { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px; width: 180px; }

@@ -52,6 +52,10 @@
       <div class="pending-ico">⏳</div>
       <h2>הבקשה נשלחה</h2>
       <p class="muted" id="pending-text">המנהל צריך לאשר את הכניסה שלך. הדף ייכנס אוטומטית ברגע שתאושר.</p>
+      <form id="pin-form" class="pin-form hidden">
+        <input id="pending-pin" type="password" inputmode="numeric" placeholder="קוד מנהל (ADMIN_PIN)" autocomplete="off">
+        <button class="btn btn-primary">כניסה</button>
+      </form>
       <button id="pending-back" class="btn btn-ghost">חזרה</button>
     </div>
   </section>

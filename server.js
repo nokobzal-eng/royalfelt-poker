@@ -92,6 +92,7 @@ io.on('connection', (socket) => {
     const r = auth.login(creds);
     if (r.error) return reply({ error: r.error });
     if (r.status === 'blocked') return reply({ status: 'blocked' });
+    if (r.status === 'needpin') return reply({ status: 'needpin', wrongPin: r.wrongPin });
     if (r.status === 'pending') {
       if (!waiting.has(r.user.uid)) waiting.set(r.user.uid, new Set());
       waiting.get(r.user.uid).add(socket);
@@ -191,4 +192,7 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => console.log(`Poker server on http://localhost:${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Poker server on http://localhost:${PORT}`);
+  console.log(`Admin phone: ${auth.adminPhone ? 'set (' + auth.adminPhone.slice(0, 3) + '…' + auth.adminPhone.slice(-2) + ')' : 'not set, the first member to sign up becomes admin'}; admin PIN: ${auth.adminPin ? 'set' : 'not set'}`);
+});

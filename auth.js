@@ -47,6 +47,8 @@ class Auth {
       };
       this.users[u.uid] = u;
     }
+    // The configured admin number is always the admin, even if it signed up before ADMIN_PHONE was set.
+    if (this.adminPhone && phone === this.adminPhone && !u.isAdmin) { u.isAdmin = true; u.status = 'approved'; }
     if (u.status === 'blocked') return { status: 'blocked', user: u };
     if (token && u.tokens.includes(token)) {
       if (u.name !== name) u.name = name;
@@ -55,9 +57,12 @@ class Auth {
     }
     // A new device.
     const fresh = crypto.randomBytes(16).toString('hex');
-    const adminByPin = u.isAdmin && this.adminPin && pin === this.adminPin;
-    if ((u.isAdmin && u.tokens.length === 0) || adminByPin) {
-      u.tokens.push(fresh);
+    // The admin can't wait for their own approval: a new device needs the PIN when one is set, otherwise nothing.
+    if (u.isAdmin && this.adminPin && u.tokens.length > 0 && pin !== this.adminPin) {
+      return { status: 'needpin', user: u, wrongPin: !!pin };
+    }
+    if (u.isAdmin) {
+      u.tokens = [...u.tokens, fresh].slice(-10);
       u.status = 'approved';
       this.save();
       return { status: 'approved', user: u, token: fresh };

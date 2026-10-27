@@ -160,6 +160,13 @@
     conn.login(c, (r) => {
       if (r.error) { show('login'); $('login-err').textContent = r.error; return; }
       if (r.token) { creds.token = r.token; keep('rf_token', r.token); }
+      $('pin-form').classList.add('hidden');
+      if (r.status === 'needpin') {
+        $('pending-text').textContent = r.wrongPin ? 'הקוד שגוי. נסה שוב.'
+          : 'זה מספר המנהל, ממכשיר או דפדפן חדש. הכנס את קוד המנהל שהגדרת ב־Render (ADMIN_PIN).';
+        $('pin-form').classList.remove('hidden');
+        return show('pending');
+      }
       if (r.status === 'pending') {
         $('pending-text').textContent = r.newDevice
           ? 'נכנסת ממכשיר חדש. המנהל צריך לאשר אותו, והדף ייכנס אוטומטית ברגע שיאושר.'
@@ -182,6 +189,10 @@
     keep('rf_name', name);
     keep('rf_phone', phone);
     doLogin({ name, phone, token: load('rf_token'), pin: $('login-pin').value || undefined });
+  });
+  $('pin-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (creds) doLogin({ ...creds, pin: $('pending-pin').value });
   });
   $('pending-back').addEventListener('click', () => { creds = null; show('login'); });
   // Members who were approved before go straight in.
