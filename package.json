@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/sim.js 25 && node test/tournament.js",
+    "test": "node test/sim.js 25 && node test/tournament.js && node test/invite.js",
     "build:demo": "node scripts/build-demo.js"
   },
   "license": "ISC",

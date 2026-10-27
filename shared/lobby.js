@@ -58,6 +58,7 @@
     { name: 'Big Nine Deepstack', game: 'NLH', maxSeats: 9, buyIn: 2000, startStack: 5000, levelMin: 4 },
   ];
 
+  const MAX_PRIVATE = 30; // invite links can reopen closed tables; keep a ceiling on how many exist at once
   const PRIVATE_IDLE_MS = 2 * 60 * 60000; // a private table with no friends seated is closed after two hours
   const BLIND_CHOICES = [[10, 20], [25, 50], [50, 100], [100, 200], [250, 500], [500, 1000]];
 
@@ -501,7 +502,7 @@
           if (this.allowRefill && this.chips(id) < 2000 && !p.tableId) { this.bankrolls[id] = START_CHIPS; this.save(); }
           return this.sendMe(id);
         }
-        case 'invite': return this.acceptInvite(id, data.code);
+        case 'invite': return this.acceptInvite(id, data.code, data.cfg);
         case 'tregister': return this.tRegister(id, data.id);
         case 'tunregister': return this.tUnregister(id, data.id);
         case 'tstart': return this.tStart(id, data.id);
@@ -515,32 +516,39 @@
     }
 
     // cfg: { name, game, blinds (index into BLIND_CHOICES), maxSeats, bots }. Returns the table or an error.
-    createPrivate(ownerId, cfg) {
+    // `code` is given when an invite link reopens a table that closed (e.g. after a server restart).
+    createPrivate(ownerId, cfg, code) {
       cfg = cfg || {};
       const game = E.GAMES[cfg.game] ? cfg.game : 'NLH';
-      const [sb, bb] = BLIND_CHOICES[Math.max(0, Math.min(BLIND_CHOICES.length - 1, Number(cfg.blinds) || 0))];
+      const blinds = Math.max(0, Math.min(BLIND_CHOICES.length - 1, Math.round(Number(cfg.blinds)) || 0));
+      const [sb, bb] = BLIND_CHOICES[blinds];
       const maxSeats = Number(cfg.maxSeats) === 9 ? 9 : 6;
       const bots = Math.max(0, Math.min(maxSeats - 2, Math.round(Number(cfg.bots) || 0)));
       const name = Lobby.cleanName(cfg.name) || 'ברוכים הבאים';
-      let code;
-      do code = Math.random().toString(36).slice(2, 8); while ([...this.tables.values()].some((t) => t.code === code));
+      const reopened = !!code;
+      if (!code) do code = Math.random().toString(36).slice(2, 8); while ([...this.tables.values()].some((t) => t.code === code));
       const t = this.createTable({ id: 'p' + (++this.privSeq), name, game, smallBlind: sb, bigBlind: bb, maxSeats, bots });
       t.private = true;
       t.code = code;
+      // Everything an invite link needs to open this same table again if it is gone by the time a friend taps it.
+      t.invite = { t: code, n: name, g: game, b: blinds, s: maxSeats, a: bots };
       t.owner = ownerId;
       t.members = new Set([ownerId]);
       t.lastHumanAt = Date.now();
       this.watch(ownerId, t.id);
-      this.send(ownerId, 'pcreated', { code, name });
+      if (!reopened) this.send(ownerId, 'pcreated', { code, name });
       this.broadcastLobby();
       return t;
     }
 
-    acceptInvite(id, code) {
-      const t = [...this.tables.values()].find((x) => x.private && x.code === String(code || '').trim());
-      if (!t) return this.send(id, 'error', 'השולחן מההזמנה כבר נסגר');
-      t.members.add(id);
-      this.watch(id, t.id);
+    acceptInvite(id, code, cfg) {
+      code = String(code || '').trim();
+      const t = [...this.tables.values()].find((x) => x.private && x.code === code);
+      if (t) { t.members.add(id); return this.watch(id, t.id); }
+      // The table closed (server restart, or idle for two hours): the link carries its settings, so open it again.
+      const open = [...this.tables.values()].filter((x) => x.private).length;
+      if (!cfg || !/^[a-z0-9]{4,12}$/.test(code) || open >= MAX_PRIVATE) return this.send(id, 'error', 'השולחן מההזמנה כבר נסגר');
+      this.createPrivate(id, cfg, code);
     }
 
     closeIdlePrivate() {
@@ -645,7 +653,7 @@
       const visible = (t) => !t.tournament && (!t.private || t.members.has(id));
       return {
         cash: [...this.tables.values()].filter(visible)
-          .map((t) => ({ type: 'cash', ...t.summary(), private: !!t.private, code: t.private && t.members.has(id) ? t.code : null }))
+          .map((t) => ({ type: 'cash', ...t.summary(), private: !!t.private, code: t.private && t.members.has(id) ? t.code : null, invite: t.private && t.members.has(id) ? t.invite : null }))
           .sort((a, b) => b.private - a.private),
         tournaments: [...this.tournaments.values()].map((tr) => tr.summary()),
       };
@@ -656,7 +664,7 @@
       if (t.tournament) v.tournament = t.tournament.info();
       v.leaders = this.leaders(t);
       v.cardStats = this.cardStatsView(t);
-      if (t.private) { v.private = true; v.code = t.code; }
+      if (t.private) { v.private = true; v.code = t.code; v.invite = t.invite; }
       return v;
     }
 

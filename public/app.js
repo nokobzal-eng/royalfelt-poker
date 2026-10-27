@@ -87,7 +87,12 @@
     route();
     // Opened from an invite link: go straight to that table.
     const code = load('rf_invite');
-    if (code) { keep('rf_invite', ''); conn.emit('invite', { code }); }
+    if (code) {
+      keep('rf_invite', '');
+      let inv;
+      try { inv = JSON.parse(code); } catch (e) { inv = { code }; } // links saved before settings were added
+      conn.emit('invite', inv);
+    }
   });
   conn.on('lobby', (l) => { lobbyData = l; renderLobby(); });
   conn.on('table', (v) => {
@@ -132,7 +137,10 @@
   const load = (k) => { try { return storage().getItem(k); } catch (e) { return null; } };
   const keep = (k, v) => { try { storage().setItem(k, v); } catch (e) { /* storage unavailable */ } };
   if (params.get('t')) {
-    keep('rf_invite', params.get('t'));
+    // Keep the table's settings from the link too, so a table that closed can be opened again.
+    const inv = { code: params.get('t') };
+    if (params.get('g')) inv.cfg = { name: params.get('n'), game: params.get('g'), blinds: params.get('b'), maxSeats: params.get('s'), bots: params.get('a') };
+    keep('rf_invite', JSON.stringify(inv));
     history.replaceState(null, '', location.pathname);
   }
   if (!online) {
@@ -274,7 +282,7 @@
         <div class="seatbar">${bar}</div>
         <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 🎰 ג'קפוט על רביעייה ומעלה</div>
         <div class="trow-actions">
-          ${t.code ? `<button class="btn btn-ghost" data-invite="${t.code}" data-iname="${esc(t.name)}">📨 הזמן</button>` : ''}
+          ${t.invite ? `<button class="btn btn-ghost" data-invite="${esc(JSON.stringify(t.invite))}">📨 הזמן</button>` : ''}
           <button class="btn btn-ghost" data-watch="${t.id}">צפה</button>
           <button class="btn btn-primary" data-join="${t.id}">שב לשחק</button>
         </div>
@@ -322,7 +330,7 @@
     const u = e.target.closest('[data-tunreg]');
     const st = e.target.closest('[data-tstart]');
     const inv = e.target.closest('[data-invite]');
-    if (inv) return shareInvite(inv.dataset.invite, inv.dataset.iname);
+    if (inv) return shareInvite(JSON.parse(inv.dataset.invite));
     if (w) conn.emit('watch', { tableId: w.dataset.watch });
     if (r) { window.FX.play('chip'); conn.emit('tregister', { id: r.dataset.treg }); }
     if (u) conn.emit('tunregister', { id: u.dataset.tunreg });
@@ -345,12 +353,12 @@
       maxSeats: Number($('p-seats').value), bots: Number($('p-bots').value),
     });
   });
-  $('invite-btn').addEventListener('click', () => view && view.code && shareInvite(view.code, view.name));
+  $('invite-btn').addEventListener('click', () => view && view.invite && shareInvite(view.invite));
 
   // Phones open the share sheet (WhatsApp etc.); elsewhere the link is copied.
-  async function shareInvite(code, name) {
-    const url = `${location.origin}${location.pathname}?t=${code}`;
-    const text = `בוא לשחק איתי פוקר בשולחן "${name}" 🃏`;
+  async function shareInvite(inv) {
+    const url = `${location.origin}${location.pathname}?${new URLSearchParams(inv)}`;
+    const text = `בוא לשחק איתי פוקר בשולחן "${inv.n}" 🃏`;
     if (navigator.share) {
       try { await navigator.share({ title: 'RoyalFelt Poker', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; }
     }
