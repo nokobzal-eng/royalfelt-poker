@@ -262,3 +262,11 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   .admin-btn { padding: 6px 9px; }
 }
 html, body { overflow-x: hidden; }
+
+/* leaderboard beside the table */
+.lead { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lead th { text-align: start; color: var(--muted); font-weight: 500; padding: 4px; border-bottom: 1px solid var(--line); }
+.lead td { padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: top; }
+.lead td:nth-child(3), .lead td:nth-child(4) { direction: ltr; text-align: end; }
+.lead tr.me td { color: var(--gold); }
+.hh-table { margin-top: 10px; line-height: 1.5; }

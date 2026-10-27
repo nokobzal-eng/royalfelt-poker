@@ -18,6 +18,10 @@
   // Knockout jackpot: whoever busts a player gets a prize (cash: big blinds onto the stack, tournament: share of the buy-in).
   const KO_CASH_BB = 20;
   const KO_TOUR_FRAC = 0.5;
+  // High-hand bonus: winning at showdown with a straight or better (using your own cards) multiplies what you won.
+  // The multiplier is the total, so x2 means an extra pot on top. Cash: onto the stack, capped. Tournament: to the bankroll.
+  const HIGH_HAND_MULT = { 4: 2, 5: 3, 6: 5, 7: 10, 8: 15, royal: 20 };
+  const HIGH_HAND_CAP_BB = 1000;
   const STYLE_KEYS = Object.keys(Bot.STYLES);
 
   const DEFAULT_TABLES = [
@@ -153,6 +157,8 @@
     }
 
     onHandEnd(t, res) {
+      this.recordStats(t, res);
+      this.highHands(t, res);
       this.knockouts(t, res);
       if (t.tournament) return this.onTournamentHand(t.tournament, t, res);
       const total = res.winners.reduce((a, w) => a + w.amount, 0);
@@ -161,6 +167,56 @@
       t.avgPot = Math.round(t.potHistory.reduce((a, b) => a + b, 0) / t.potHistory.length);
       setTimeout(() => this.manageBots(t), 500);
       this.broadcastLobby();
+    }
+
+    // Hands played and won per player at this table, for the leaderboard beside it.
+    recordStats(t, res) {
+      t.stats = t.stats || new Map();
+      const won = new Set(res.winners.map((w) => w.seat));
+      t.seats.forEach((s, i) => {
+        if (!s || !s.inHand) return;
+        const st = t.stats.get(s.id) || { name: s.name, played: 0, won: 0, best: -1, bestName: '' };
+        st.name = s.name;
+        st.played++;
+        if (won.has(i)) st.won++;
+        t.stats.set(s.id, st);
+      });
+      for (const w of res.winners) {
+        const s = t.seats[w.seat];
+        const st = s && t.stats.get(s.id);
+        if (st && w.cat != null && w.cat > st.best) { st.best = w.cat; st.bestName = w.hand; }
+      }
+    }
+
+    leaders(t) {
+      if (!t.stats) return [];
+      return [...t.stats.values()]
+        .filter((st) => st.played > 0)
+        .map((st) => ({ name: st.name, played: st.played, won: st.won, pct: Math.round((st.won / st.played) * 100), best: st.bestName }))
+        .sort((a, b) => (b.pct - a.pct) || (b.won - a.won))
+        .slice(0, 10);
+    }
+
+    highHands(t, res) {
+      if (!res.shown.length) return; // nobody showed: the hand ended with a fold
+      const tr = t.tournament;
+      for (const w of res.winners) {
+        if (w.cat == null || w.cat < 4) continue;
+        const s = t.seats[w.seat];
+        // Your own cards must play: no bonus when the board alone makes the hand.
+        if (!s || !w.best || !w.best.some((c) => s.cards.includes(c))) continue;
+        const mult = w.hand === 'רויאל פלאש' ? HIGH_HAND_MULT.royal : HIGH_HAND_MULT[w.cat];
+        let extra;
+        if (tr) extra = (mult - 1) * Math.round(tr.buyIn / 10);
+        else extra = Math.min((mult - 1) * w.amount, HIGH_HAND_CAP_BB * t.bigBlind);
+        if (extra <= 0) continue;
+        if (tr) {
+          if (!s.isBot) { this.bankrolls[s.id] = this.chips(s.id) + extra; this.sendMe(s.id); }
+        } else s.stack += extra;
+        w.bonus = { mult, amount: extra };
+        t.addLog(`⭐ בונוס יד חזקה: ${s.name} עם ${w.hand} מקבל x${mult}, עוד ${extra.toLocaleString()}`);
+      }
+      this.save();
     }
 
     // Every player who goes bust pays a jackpot to the biggest winner of that hand.
@@ -518,6 +574,7 @@
     tableView(t, id) {
       const v = t.view(id);
       if (t.tournament) v.tournament = t.tournament.info();
+      v.leaders = this.leaders(t);
       return v;
     }
 

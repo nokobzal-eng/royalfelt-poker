@@ -406,6 +406,14 @@
         window.FX.play(top.cat >= 6 ? 'big' : 'win');
         window.FX.confetti(wrap, top.cat >= 7 ? 2.2 : top.cat >= 6 ? 1.5 : 1);
       } else if (iWon) window.FX.play('win');
+      const bonus = res.winners.find((w) => w.bonus);
+      if (bonus) {
+        setTimeout(() => {
+          window.FX.banner(wrap, `⭐ בונוס x${bonus.bonus.mult}`, `${bonus.name} · ${bonus.hand} · +${fmt(bonus.bonus.amount)}`, bonus.bonus.mult >= 10 ? 'mega' : 'big');
+          window.FX.confetti(wrap, bonus.bonus.mult >= 10 ? 2.4 : 1.6, ['#f2c14e', '#ffe08a', '#fff4c2', '#7ee0a1']);
+          window.FX.play('big');
+        }, 2000);
+      }
       if (res.bounty) setTimeout(() => window.FX.bountyReveal(wrap, res.bounty, fmt), 1300);
     }
     return out;
@@ -502,6 +510,7 @@
     fresh = { hole: false, boardFrom: 99, tags: new Set() };
     renderActions();
     renderLog();
+    renderLeaders();
   }
 
   $('seats').addEventListener('click', (e) => {
@@ -588,6 +597,20 @@
     if (atBottom) el.scrollTop = el.scrollHeight;
   }
 
+  function renderLeaders() {
+    const rows = view.leaders || [];
+    $('panel-lead').innerHTML = `<table class="lead">
+      <thead><tr><th>#</th><th>שחקן</th><th>ניצחונות</th><th>%</th></tr></thead>
+      <tbody>${rows.map((r, k) => `<tr${me && r.name === me.name ? ' class="me"' : ''}>
+        <td>${k === 0 ? '🥇' : k === 1 ? '🥈' : k === 2 ? '🥉' : k + 1}</td>
+        <td>${esc(r.name)}${r.best ? `<div class="muted small">${esc(r.best)}</div>` : ''}</td>
+        <td>${r.won}/${r.played}</td>
+        <td><b>${r.pct}%</b></td></tr>`).join('')}</tbody></table>
+      ${rows.length ? '' : '<div class="muted small">הטבלה מתמלאת אחרי הידיים הראשונות</div>'}
+      <div class="hh-table muted small">⭐ בונוס יד חזקה (מנצח בשואודאון עם הקלפים שלו):
+        סטרייט x2 · צבע x3 · פול האוס x5 · רביעייה x10 · סטרייט פלאש x15 · רויאל x20</div>`;
+  }
+
   function renderChat() {
     const el = $('chat-msgs');
     el.innerHTML = chatLines.map((m) => `<div><b>${esc(m.name)}:</b> ${esc(m.text)}</div>`).join('');
@@ -603,6 +626,7 @@
     const b = e.target.closest('[data-p]');
     if (!b) return;
     document.querySelectorAll('.side-tabs .tab').forEach((x) => x.classList.toggle('active', x === b));
+    $('panel-lead').classList.toggle('hidden', b.dataset.p !== 'lead');
     $('panel-log').classList.toggle('hidden', b.dataset.p !== 'log');
     $('panel-chat').classList.toggle('hidden', b.dataset.p !== 'chat');
   });
