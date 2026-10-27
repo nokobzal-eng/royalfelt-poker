@@ -281,7 +281,7 @@
           <div>קופה ממוצעת<b>${fmt(t.avgPot)}</b></div>
         </div>
         <div class="seatbar">${bar}</div>
-        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 🎁 מיסטרי באונטי · 💥 ג'קפוט נוקאאוט</div>
+        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 💥 ג'קפוט נוקאאוט · 🎰 ג'קפוט ידיים</div>
         <div class="trow-actions">
           ${t.code ? `<button class="btn btn-ghost" data-invite="${t.code}" data-iname="${esc(t.name)}">📨 הזמן</button>` : ''}
           <button class="btn btn-ghost" data-watch="${t.id}">צפה</button>
@@ -318,7 +318,7 @@
         <div>סטאק<b>${fmt(t.startStack)}</b></div>
       </div>
       <div class="muted small">${pays}</div>
-      <div class="muted small">${t.maxSeats} שחקנים · בליינדים עולים כל ${t.levelMin} דק' · 🎁 מיסטרי באונטי בכסף</div>
+      <div class="muted small">${t.maxSeats} שחקנים · בליינדים עולים כל ${t.levelMin} דק' · 💥 ג'קפוט נוקאאוט</div>
       <div class="tour-status ${t.status}">${status}</div>
       <div class="trow-actions">${actions}</div>
     </div>`;
@@ -464,7 +464,16 @@
         window.FX.play(top.cat >= 6 ? 'big' : 'win');
         window.FX.confetti(wrap, top.cat >= 7 ? 2.2 : top.cat >= 6 ? 1.5 : 1);
       } else if (iWon) window.FX.play('win');
-      const bonus = res.winners.find((w) => w.bonus);
+      const jp = res.winners.find((w) => w.jackpot);
+      const bonus = !jp && res.winners.find((w) => w.bonus);
+      if (jp) {
+        setTimeout(() => {
+          window.FX.banner(wrap, '🎰 ג\'קפוט!', `${jp.name} · ${jp.jackpot.label} · +${fmt(jp.jackpot.amount + jp.bonus.amount)}`, 'mega');
+          window.FX.confetti(wrap, 3, ['#f2c14e', '#ffe08a', '#fff4c2', '#e0283c', '#7ee0a1']);
+          window.FX.play('big');
+          setTimeout(() => window.FX.confetti(wrap, 2.5), 900);
+        }, 2000);
+      }
       if (bonus) {
         setTimeout(() => {
           window.FX.banner(wrap, `⭐ בונוס x${bonus.bonus.mult}`, `${bonus.name} · ${bonus.hand} · +${fmt(bonus.bonus.amount)}`, bonus.bonus.mult >= 10 ? 'mega' : 'big');
@@ -472,7 +481,6 @@
           window.FX.play('big');
         }, 2000);
       }
-      if (res.bounty) setTimeout(() => window.FX.bountyReveal(wrap, res.bounty, fmt), 1300);
     }
     return out;
   }
@@ -525,7 +533,6 @@
     for (let i = 0; i < n; i++) {
       const rel = (i - pivot + n) % n;
       const p = seatPos(rel, n);
-      const isBounty = i === v.bountySeat;
       const s = v.seats[i];
       if (!s) {
         if (v.mySeat < 0) html += `<button class="empty-seat" data-seat="${i}" style="left:${p.x}%;top:${p.y}%">שב כאן</button>`;
@@ -536,9 +543,12 @@
       if (i === v.toAct) cls.push('turn');
       if (s.folded || s.left) cls.push('folded');
       if (winners.has(i)) cls.push('winner');
+      const shownHand = showdown && v.lastResult.shown.find((x) => x.seat === i);
+      if (shownHand) cls.push('shown');
       let tag = '';
       const win = showdown && v.lastResult.winners.find((w) => w.seat === i);
-      if (win) tag = `<span class="tag win">+${fmt(win.amount)}</span>`;
+      if (shownHand) tag = ''; // the hand label above the plate says it all
+      else if (win) tag = `<span class="tag win">+${fmt(win.amount)}</span>`;
       else if (s.lastAction) {
         const k = /פולד/.test(s.lastAction) ? 'fold' : /אול/.test(s.lastAction) ? 'allin' : /רייז|בט/.test(s.lastAction) ? 'raise' : '';
         tag = `<span class="tag ${k}${fresh.tags.has(i) ? ' pop' : ''}">${s.lastAction}</span>`;
@@ -547,8 +557,8 @@
         + (fresh.hole ? ` deal-in d${(rel + k * 3) % 8}` : ''))).join('');
       html += `<div class="${cls.join(' ')}" style="left:${p.x}%;top:${p.y}%">
         <div class="hole n${s.cards.length}">${hole}</div>
+        ${shownHand ? `<div class="sd-hand ${win ? 'won' : 'lost'}">${esc(shownHand.hand)}${win ? ` · +${fmt(win.amount)}` : ''}</div>` : ''}
         <div class="plate">${tag}
-          ${isBounty ? `<div class="bounty-badge" title="מיסטרי באונטי: מי שינצח את ${esc(s.name)} בשואודאון לוקח פרס מוסתר">🎁</div>` : ''}
           <div class="pinfo">${avatarHtml(s.name, s.avatar)}
             <div class="ptext">
               <div class="pname">${esc(s.name)}</div>
@@ -659,15 +669,40 @@
   function renderLeaders() {
     const rows = view.leaders || [];
     $('panel-lead').innerHTML = `<table class="lead">
-      <thead><tr><th>#</th><th>שחקן</th><th>ניצחונות</th><th>%</th></tr></thead>
+      <thead><tr><th>#</th><th>שחקן</th><th title="ניצחונות מתוך ידיים ששוחקו (בלי פולד לפני הפלופ)">ניצחונות</th><th>%</th><th title="באיזה אחוז מהידיים השחקן נכנס ליד">משחק</th></tr></thead>
       <tbody>${rows.map((r, k) => `<tr${me && r.name === me.name ? ' class="me"' : ''}>
         <td>${k === 0 ? '🥇' : k === 1 ? '🥈' : k === 2 ? '🥉' : k + 1}</td>
         <td>${esc(r.name)}${r.best ? `<div class="muted small">${esc(r.best)}</div>` : ''}</td>
         <td>${r.won}/${r.played}</td>
-        <td><b>${r.pct}%</b></td></tr>`).join('')}</tbody></table>
+        <td><b>${r.pct}%</b></td>
+        <td class="muted">${r.vpip}%</td></tr>`).join('')}</tbody></table>
+      <div class="muted small">נספרות רק ידיים שהשחקן שיחק אחרי הפלופ. "משחק" הוא אחוז הידיים שהשחקן לא זרק לפני הפלופ.</div>
       ${rows.length ? '' : '<div class="muted small">הטבלה מתמלאת אחרי הידיים הראשונות</div>'}
       <div class="hh-table muted small">⭐ בונוס יד חזקה (מנצח בשואודאון עם הקלפים שלו):
-        סטרייט x2 · צבע x3 · פול האוס x5 · רביעייה x10 · סטרייט פלאש x15 · רויאל x20</div>`;
+        ${view.game.code === 'NLH' ? 'סטרייט x2 · צבע x3 · ' : ''}פול האוס x5 · רביעייה x10 · סטרייט פלאש x15 · רויאל x20</div>
+      <div class="hh-table muted small">🎰 ג'קפוט נוסף: ${jackpotsFor(view.game.code).reverse().map((j) => `${j.label} ${view.tournament ? j.buyIns + ' באי־אינים' : fmt(j.bb * view.bigBlind)}`).join(' · ')}</div>`;
+    renderCardStats();
+  }
+
+  function jackpotsFor(game) {
+    const L = window.PokerLobby;
+    const keys = L.JACKPOTS.map((j) => j.key);
+    return L.JACKPOTS.filter((j) => keys.indexOf(j.key) <= keys.indexOf(L.MIN_JACKPOT[game] || 'aces-full'));
+  }
+
+  function renderCardStats() {
+    const cs = view.cardStats;
+    if (!cs) { $('panel-stats').innerHTML = '<div class="muted small">הסטטיסטיקה מתמלאת אחרי הידיים הראשונות</div>'; return; }
+    const bars = (rows, label) => {
+      const max = Math.max(1, ...rows.map((r) => r[1]));
+      return rows.map(([k, n]) => `<div class="sbar"><span class="sk">${label(k)}</span><i style="--w:${(n / max) * 100}%"></i><b>${n}</b></div>`).join('');
+    };
+    const rankLabel = (r) => (r === 'T' ? '10' : r);
+    const cardLabel = (c) => `<span class="mini ${c[1]}">${rankLabel(c[0])}${SUIT[c[1]]}</span>`;
+    $('panel-stats').innerHTML = `<div class="muted small">${fmt(cs.hands)} ידיים בשולחן הזה</div>
+      <h4>הקלפים שיצאו הכי הרבה</h4>${bars(cs.ranks.slice(0, 6), rankLabel)}
+      <h4>הקלפים המדויקים הכי נפוצים</h4>${bars(cs.cards, cardLabel)}
+      <h4>הידיים שהגיעו הכי הרבה לשואודאון</h4>${cs.made.length ? bars(cs.made, (h) => esc(h)) : '<div class="muted small">עוד לא היה שואודאון</div>'}`;
   }
 
   function renderChat() {
@@ -686,6 +721,7 @@
     if (!b) return;
     document.querySelectorAll('.side-tabs .tab').forEach((x) => x.classList.toggle('active', x === b));
     $('panel-lead').classList.toggle('hidden', b.dataset.p !== 'lead');
+    $('panel-stats').classList.toggle('hidden', b.dataset.p !== 'stats');
     $('panel-log').classList.toggle('hidden', b.dataset.p !== 'log');
     $('panel-chat').classList.toggle('hidden', b.dataset.p !== 'chat');
   });

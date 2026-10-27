@@ -146,7 +146,7 @@
       this.timer = null;
       this.pendingStart = null;
       this.actionSeq = 0;
-      this.mysteryBounty = opts.mysteryBounty !== false;
+      this.mysteryBounty = opts.mysteryBounty === true; // off unless a table asks for it
       // Tournaments pay the bounty as a prize outside the chip stacks.
       this.bountyToStack = opts.bountyToStack !== false;
       this.closed = false;
@@ -182,6 +182,7 @@
       this.addLog(`${p.name} קם מהשולחן`);
       if (this.isActive() && p.inHand && !p.folded) {
         p.folded = true;
+        p.foldStage = this.stage;
         p.lastAction = 'פולד';
         this.advance();
       } else if (!p.inHand || !this.isActive()) {
@@ -244,7 +245,7 @@
       this.deck = newDeck();
       this.board = [];
       for (const s of this.seats) if (s) Object.assign(s, {
-        cards: [], bet: 0, total: 0, inHand: false, folded: false, allIn: false, acted: false, lastAction: '', showCards: false,
+        cards: [], bet: 0, total: 0, inHand: false, folded: false, foldStage: null, allIn: false, acted: false, lastAction: '', showCards: false,
         pfr: false, pfCall: false, aggrStage: '',
       });
       for (const i of players) this.seats[i].inHand = true;
@@ -309,7 +310,7 @@
       if (type === 'raise' && !L.canRaise) type = L.toCall ? 'call' : 'check';
 
       if (type === 'fold') {
-        s.folded = true; s.lastAction = 'פולד';
+        s.folded = true; s.foldStage = this.stage; s.lastAction = 'פולד';
         this.addLog(`${s.name}: פולד`);
       } else if (type === 'check') {
         s.lastAction = 'צ\'ק';
@@ -521,7 +522,8 @@
         seats: this.seats.map((s, i) => s && {
           name: s.name, avatar: s.avatar || null, stack: s.stack, bet: s.bet, folded: s.folded, allIn: s.allIn,
           inHand: s.inHand, lastAction: s.lastAction, left: s.left, away: !!s.away,
-          cards: s.inHand && !s.folded ? ((i === me || s.showCards) ? s.cards : s.cards.map(() => '??')) : [],
+          // Your own cards stay visible after you fold; other folded hands disappear.
+          cards: !s.inHand ? [] : i === me ? s.cards : s.folded ? [] : s.showCards ? s.cards : s.cards.map(() => '??'),
         }),
       };
       if (me >= 0 && this.toAct === me && this.isActive()) v.legal = this.legal(me);

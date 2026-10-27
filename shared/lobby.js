@@ -21,7 +21,40 @@
   // High-hand bonus: winning at showdown with a straight or better (using your own cards) multiplies what you won.
   // The multiplier is the total, so x2 means an extra pot on top. Cash: onto the stack, capped. Tournament: to the bankroll.
   const HIGH_HAND_MULT = { 4: 2, 5: 3, 6: 5, 7: 10, 8: 15, royal: 20 };
-  const HIGH_HAND_CAP_BB = 1000;
+  const HIGH_HAND_CAP_BB = 200;
+  // Omaha makes big hands far more often, so its bonus starts higher: lowest bonus hand and lowest jackpot per game.
+  const MIN_BONUS_CAT = { NLH: 4, PLO4: 6, PLO5: 6, PLO6: 6 };
+  const MIN_JACKPOT = { NLH: 'aces-full', PLO4: 'aces-full', PLO5: 'quads', PLO6: 'quads' };
+  // Jackpot on top of the bonus for monster hands: aces full of tens or better.
+  // Cash pays big blinds onto the stack, tournaments pay buy-ins to the bankroll.
+  const JACKPOTS = [
+    { key: 'royal', label: 'רויאל פלאש', bb: 2500, buyIns: 25 },
+    { key: 'sf', label: 'סטרייט פלאש', bb: 1000, buyIns: 10 },
+    { key: 'quads', label: 'רביעייה', bb: 500, buyIns: 5 },
+    { key: 'aces-full', label: 'פול האוס אסים על עשיריות+', bb: 300, buyIns: 3 },
+  ];
+  const RANK_ORDER = '23456789TJQKA';
+
+  function jackpotFor(w, game) {
+    const jp = jackpotHand(w);
+    if (!jp) return null;
+    const keys = JACKPOTS.map((j) => j.key);
+    return keys.indexOf(jp.key) <= keys.indexOf(MIN_JACKPOT[game] || 'aces-full') ? jp : null;
+  }
+
+  function jackpotHand(w) {
+    if (w.hand === 'רויאל פלאש') return JACKPOTS[0];
+    if (w.cat === 8) return JACKPOTS[1];
+    if (w.cat === 7) return JACKPOTS[2];
+    if (w.cat === 6 && w.best) {
+      const n = {};
+      for (const c of w.best) n[c[0]] = (n[c[0]] || 0) + 1;
+      const trips = Object.keys(n).find((r) => n[r] === 3);
+      const pair = Object.keys(n).find((r) => n[r] === 2);
+      if (trips === 'A' && RANK_ORDER.indexOf(pair) >= RANK_ORDER.indexOf('T')) return JACKPOTS[3];
+    }
+    return null;
+  }
   const STYLE_KEYS = Object.keys(Bot.STYLES);
 
   const DEFAULT_TABLES = [
@@ -179,12 +212,25 @@
       const won = new Set(res.winners.map((w) => w.seat));
       t.seats.forEach((s, i) => {
         if (!s || !s.inHand) return;
-        const st = t.stats.get(s.id) || { name: s.name, played: 0, won: 0, best: -1, bestName: '' };
+        const st = t.stats.get(s.id) || { name: s.name, dealt: 0, played: 0, won: 0, showdowns: 0, best: -1, bestName: '' };
         st.name = s.name;
-        st.played++;
+        st.dealt++;
+        // A hand thrown away before the flop doesn't count as played.
+        if (!(s.folded && s.foldStage === 'preflop')) st.played++;
         if (won.has(i)) st.won++;
+        if (res.shown.some((x) => x.seat === i)) st.showdowns++;
         t.stats.set(s.id, st);
       });
+      // Which cards and which hands came up most at this table.
+      const cs = t.cardStats = t.cardStats || { hands: 0, ranks: {}, cards: {}, made: {} };
+      cs.hands++;
+      const dealt = [...res.board];
+      for (const s of t.seats) if (s && s.inHand) dealt.push(...s.cards);
+      for (const c of dealt) {
+        cs.ranks[c[0]] = (cs.ranks[c[0]] || 0) + 1;
+        cs.cards[c] = (cs.cards[c] || 0) + 1;
+      }
+      for (const x of res.shown) cs.made[x.hand] = (cs.made[x.hand] || 0) + 1;
       for (const w of res.winners) {
         const s = t.seats[w.seat];
         const st = s && t.stats.get(s.id);
@@ -195,17 +241,28 @@
     leaders(t) {
       if (!t.stats) return [];
       return [...t.stats.values()]
-        .filter((st) => st.played > 0)
-        .map((st) => ({ name: st.name, played: st.played, won: st.won, pct: Math.round((st.won / st.played) * 100), best: st.bestName }))
+        .filter((st) => st.dealt > 0)
+        .map((st) => ({
+          name: st.name, dealt: st.dealt, played: st.played, won: st.won, showdowns: st.showdowns,
+          pct: st.played ? Math.round((st.won / st.played) * 100) : 0,
+          vpip: Math.round((st.played / st.dealt) * 100), best: st.bestName,
+        }))
         .sort((a, b) => (b.pct - a.pct) || (b.won - a.won))
         .slice(0, 10);
+    }
+
+    cardStatsView(t) {
+      const cs = t.cardStats;
+      if (!cs) return null;
+      const top = (o, n) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, n);
+      return { hands: cs.hands, ranks: top(cs.ranks, 13), cards: top(cs.cards, 5), made: top(cs.made, 9) };
     }
 
     highHands(t, res) {
       if (!res.shown.length) return; // nobody showed: the hand ended with a fold
       const tr = t.tournament;
       for (const w of res.winners) {
-        if (w.cat == null || w.cat < 4) continue;
+        if (w.cat == null || w.cat < (MIN_BONUS_CAT[t.game.code] || 4)) continue;
         const s = t.seats[w.seat];
         // Your own cards must play: no bonus when the board alone makes the hand.
         if (!s || !w.best || !w.best.some((c) => s.cards.includes(c))) continue;
@@ -219,6 +276,15 @@
         } else s.stack += extra;
         w.bonus = { mult, amount: extra };
         t.addLog(`⭐ בונוס יד חזקה: ${s.name} עם ${w.hand} מקבל x${mult}, עוד ${extra.toLocaleString()}`);
+        const jp = jackpotFor(w, t.game.code);
+        if (jp) {
+          const amount = tr ? jp.buyIns * tr.buyIn : jp.bb * t.bigBlind;
+          if (tr) {
+            if (!s.isBot) { this.bankrolls[s.id] = this.chips(s.id) + amount; this.sendMe(s.id); }
+          } else s.stack += amount;
+          w.jackpot = { label: jp.label, amount };
+          t.addLog(`🎰 ג'קפוט! ${s.name} עם ${jp.label}: ${amount.toLocaleString()}`);
+        }
       }
       this.save();
     }
@@ -299,8 +365,7 @@
       const [sb, bb] = LEVELS[0];
       const t = new E.Table({
         id: tr.id, name: tr.name, game: tr.game, smallBlind: sb, bigBlind: bb, maxSeats: tr.maxSeats,
-        minBuyIn: 0, maxBuyIn: tr.startStack, mysteryBounty: true, bountyToStack: false,
-        bountyUnit: Math.max(1, Math.round(tr.buyIn / 20)), ...this.tableOpts,
+        minBuyIn: 0, maxBuyIn: tr.startStack, ...this.tableOpts,
       }, {
         onUpdate: (tbl) => this.broadcastTable(tbl),
         onHandEnd: (tbl, res) => this.onHandEnd(tbl, res),
@@ -497,7 +562,7 @@
       const [sb, bb] = BLIND_CHOICES[Math.max(0, Math.min(BLIND_CHOICES.length - 1, Number(cfg.blinds) || 0))];
       const maxSeats = Number(cfg.maxSeats) === 9 ? 9 : 6;
       const bots = Math.max(0, Math.min(maxSeats - 2, Math.round(Number(cfg.bots) || 0)));
-      const name = Lobby.cleanName(cfg.name) || 'השולחן של ' + this.nameOf(ownerId);
+      const name = Lobby.cleanName(cfg.name) || 'ברוכים הבאים';
       let code;
       do code = Math.random().toString(36).slice(2, 8); while ([...this.tables.values()].some((t) => t.code === code));
       const t = this.createTable({ id: 'p' + (++this.privSeq), name, game, smallBlind: sb, bigBlind: bb, maxSeats, bots });
@@ -631,6 +696,7 @@
       const v = t.view(id);
       if (t.tournament) v.tournament = t.tournament.info();
       v.leaders = this.leaders(t);
+      v.cardStats = this.cardStatsView(t);
       if (t.private) { v.private = true; v.code = t.code; }
       return v;
     }
@@ -652,7 +718,7 @@
 
   function t_log(tr, msg) { if (tr.table) tr.table.addLog(msg); }
 
-  const api = { BLIND_CHOICES, Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
+  const api = { MIN_BONUS_CAT, MIN_JACKPOT, JACKPOTS, BLIND_CHOICES, Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
   if (isNode) module.exports = api;
   else global.PokerLobby = api;
 })(typeof window !== 'undefined' ? window : globalThis);

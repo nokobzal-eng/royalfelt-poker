@@ -112,10 +112,12 @@
       <aside class="side">
         <div class="tabs side-tabs">
           <button class="tab active" data-p="lead">מובילים</button>
+          <button class="tab" data-p="stats">סטטיסטיקה</button>
           <button class="tab" data-p="log">היסטוריה</button>
           <button class="tab" data-p="chat">צ'אט</button>
         </div>
         <div class="panel" id="panel-lead"></div>
+        <div class="panel hidden" id="panel-stats"></div>
         <div class="panel hidden" id="panel-log"></div>
         <div class="panel hidden" id="panel-chat">
           <div id="chat-msgs" class="chat-msgs"></div>
@@ -153,7 +155,7 @@
     <div class="modal-card">
       <h3>שולחן פרטי לחברים</h3>
       <form id="pform" class="pform">
-        <label>שם השולחן<input id="p-name" maxlength="16" placeholder="למשל: חמישי בערב"></label>
+        <label>שם השולחן<input id="p-name" maxlength="16" value="ברוכים הבאים"></label>
         <label>משחק<select id="p-game">
           <option value="NLH">טקסס הולדם</option><option value="PLO4">אומהה 4</option>
           <option value="PLO5">אומהה 5</option><option value="PLO6">אומהה 6</option></select></label>

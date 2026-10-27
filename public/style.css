@@ -279,3 +279,33 @@ html, body { overflow-x: hidden; }
 
 .pin-form { display: flex; gap: 8px; justify-content: center; margin: 12px 0; }
 .pin-form input { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px; width: 180px; }
+
+/* showdown: revealed hands sit above the plate, bigger, with the hand name */
+.seat.shown { z-index: 8; }
+.seat.shown .hole { margin-bottom: 4px; }
+.seat.shown .hole .card { width: 40px; height: 56px; }
+.seat.shown .hole .card .r { font-size: 18px; } .seat.shown .hole .card .su { font-size: 15px; }
+.seat.shown .hole.n4 .card, .seat.shown .hole.n5 .card, .seat.shown .hole.n6 .card { margin: 0 -9px; }
+.seat.shown.folded { opacity: 1; }
+.sd-hand { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-bottom: 3px; white-space: nowrap; background: rgba(0,0,0,.7); }
+.sd-hand.won { color: #10140f; background: var(--gold); }
+.sd-hand.lost { color: #e9ecf2; border: 1px solid #4a5166; }
+.seat.shown:not(.winner) .hole .card { filter: none; }
+/* your own cards after a fold */
+.seat.me.folded { opacity: .8; }
+.seat.me.folded .hole .card { filter: grayscale(.7) brightness(.75); }
+/* card and hand statistics */
+#panel-stats h4 { margin: 12px 0 6px; font-size: 13px; }
+.sbar { display: grid; grid-template-columns: 92px 1fr 34px; gap: 6px; align-items: center; font-size: 12px; margin: 3px 0; }
+.sbar i { height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--gold), #ffe08a); width: var(--w); }
+.sbar b { text-align: end; direction: ltr; }
+.mini { display: inline-block; background: var(--card); border-radius: 4px; padding: 0 5px; font-weight: 800; color: var(--s); direction: ltr; }
+.mini.h { color: var(--h); } .mini.d { color: var(--d); } .mini.c { color: var(--c); }
+@media (max-width: 900px) {
+  .seat.shown .hole .card { width: 32px; height: 45px; }
+  .seat.shown .hole .card .r { font-size: 14px; } .seat.shown .hole .card .su { font-size: 12px; }
+  .seat.shown .hole.n4 .card, .seat.shown .hole.n5 .card, .seat.shown .hole.n6 .card { margin: 0 -8px; }
+  .sd-hand { font-size: 11px; }
+}
+/* your own cards sit fully above your plate so nothing covers them */
+.seat.me .hole { margin-bottom: 3px; }
