@@ -22,9 +22,8 @@
   // The multiplier is the total, so x2 means an extra pot on top. Cash: onto the stack, capped. Tournament: to the bankroll.
   const HIGH_HAND_MULT = { 4: 2, 5: 3, 6: 5, 7: 10, 8: 15, royal: 20 };
   const HIGH_HAND_CAP_BB = 200;
-  // Omaha makes big hands far more often, so its bonus starts higher: lowest bonus hand and lowest jackpot per game.
-  const MIN_BONUS_CAT = { NLH: 4, PLO4: 6, PLO5: 6, PLO6: 6 };
-  const MIN_JACKPOT = { NLH: 'aces-full', PLO4: 'aces-full', PLO5: 'quads', PLO6: 'quads' };
+  // The high-hand bonus and jackpots are Hold'em only: Omaha makes big hands far too often.
+  const HIGH_HAND_GAMES = new Set(['NLH']);
   // Jackpot on top of the bonus for monster hands: aces full of tens or better.
   // Cash pays big blinds onto the stack, tournaments pay buy-ins to the bankroll.
   const JACKPOTS = [
@@ -35,14 +34,7 @@
   ];
   const RANK_ORDER = '23456789TJQKA';
 
-  function jackpotFor(w, game) {
-    const jp = jackpotHand(w);
-    if (!jp) return null;
-    const keys = JACKPOTS.map((j) => j.key);
-    return keys.indexOf(jp.key) <= keys.indexOf(MIN_JACKPOT[game] || 'aces-full') ? jp : null;
-  }
-
-  function jackpotHand(w) {
+  function jackpotFor(w) {
     if (w.hand === 'רויאל פלאש') return JACKPOTS[0];
     if (w.cat === 8) return JACKPOTS[1];
     if (w.cat === 7) return JACKPOTS[2];
@@ -259,10 +251,10 @@
     }
 
     highHands(t, res) {
-      if (!res.shown.length) return; // nobody showed: the hand ended with a fold
+      if (!res.shown.length || !HIGH_HAND_GAMES.has(t.game.code)) return; // no showdown, or an Omaha table
       const tr = t.tournament;
       for (const w of res.winners) {
-        if (w.cat == null || w.cat < (MIN_BONUS_CAT[t.game.code] || 4)) continue;
+        if (w.cat == null || w.cat < 4) continue;
         const s = t.seats[w.seat];
         // Your own cards must play: no bonus when the board alone makes the hand.
         if (!s || !w.best || !w.best.some((c) => s.cards.includes(c))) continue;
@@ -276,7 +268,7 @@
         } else s.stack += extra;
         w.bonus = { mult, amount: extra };
         t.addLog(`⭐ בונוס יד חזקה: ${s.name} עם ${w.hand} מקבל x${mult}, עוד ${extra.toLocaleString()}`);
-        const jp = jackpotFor(w, t.game.code);
+        const jp = jackpotFor(w);
         if (jp) {
           const amount = tr ? jp.buyIns * tr.buyIn : jp.bb * t.bigBlind;
           if (tr) {
@@ -718,7 +710,7 @@
 
   function t_log(tr, msg) { if (tr.table) tr.table.addLog(msg); }
 
-  const api = { MIN_BONUS_CAT, MIN_JACKPOT, JACKPOTS, BLIND_CHOICES, Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
+  const api = { JACKPOTS, BLIND_CHOICES, Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
   if (isNode) module.exports = api;
   else global.PokerLobby = api;
 })(typeof window !== 'undefined' ? window : globalThis);
