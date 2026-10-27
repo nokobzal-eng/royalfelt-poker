@@ -281,7 +281,7 @@
           <div>קופה ממוצעת<b>${fmt(t.avgPot)}</b></div>
         </div>
         <div class="seatbar">${bar}</div>
-        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 💥 ג'קפוט נוקאאוט${t.game === 'NLH' ? ' · 🎰 ג\'קפוט ידיים' : ''}</div>
+        <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 💥 ג'קפוט נוקאאוט · 🎰 ג'קפוט ידיים</div>
         <div class="trow-actions">
           ${t.code ? `<button class="btn btn-ghost" data-invite="${t.code}" data-iname="${esc(t.name)}">📨 הזמן</button>` : ''}
           <button class="btn btn-ghost" data-watch="${t.id}">צפה</button>
@@ -678,8 +678,8 @@
         <td class="muted">${r.vpip}%</td></tr>`).join('')}</tbody></table>
       <div class="muted small">נספרות רק ידיים שהשחקן שיחק אחרי הפלופ. "משחק" הוא אחוז הידיים שהשחקן לא זרק לפני הפלופ.</div>
       ${rows.length ? '' : '<div class="muted small">הטבלה מתמלאת אחרי הידיים הראשונות</div>'}
-      ${view.game.code !== 'NLH' ? '' : `<div class="hh-table muted small">⭐ בונוס יד חזקה (מנצח בשואודאון עם הקלפים שלו):
-        סטרייט x2 · צבע x3 · פול האוס x5 · רביעייה x10 · סטרייט פלאש x15 · רויאל x20</div>
+      ${`<div class="hh-table muted small">⭐ בונוס יד חזקה (מנצח בשואודאון עם הקלפים שלו):
+        רביעייה x10 · סטרייט פלאש x15 · רויאל x20</div>
       <div class="hh-table muted small">🎰 ג'קפוט נוסף: ${window.PokerLobby.JACKPOTS.slice().reverse().map((j) => `${j.label} ${view.tournament ? j.buyIns + ' באי־אינים' : fmt(j.bb * view.bigBlind)}`).join(' · ')}</div>`}`;
     renderCardStats();
   }

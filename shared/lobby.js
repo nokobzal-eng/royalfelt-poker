@@ -22,29 +22,19 @@
   // The multiplier is the total, so x2 means an extra pot on top. Cash: onto the stack, capped. Tournament: to the bankroll.
   const HIGH_HAND_MULT = { 4: 2, 5: 3, 6: 5, 7: 10, 8: 15, royal: 20 };
   const HIGH_HAND_CAP_BB = 200;
-  // The high-hand bonus and jackpots are Hold'em only: Omaha makes big hands far too often.
-  const HIGH_HAND_GAMES = new Set(['NLH']);
-  // Jackpot on top of the bonus for monster hands: aces full of tens or better.
+  const MIN_BONUS_CAT = 7; // bonus and jackpot start at four of a kind, in every game
+  // Jackpot on top of the bonus for monster hands: four of a kind or better.
   // Cash pays big blinds onto the stack, tournaments pay buy-ins to the bankroll.
   const JACKPOTS = [
     { key: 'royal', label: 'רויאל פלאש', bb: 2500, buyIns: 25 },
     { key: 'sf', label: 'סטרייט פלאש', bb: 1000, buyIns: 10 },
     { key: 'quads', label: 'רביעייה', bb: 500, buyIns: 5 },
-    { key: 'aces-full', label: 'פול האוס אסים על עשיריות+', bb: 300, buyIns: 3 },
   ];
-  const RANK_ORDER = '23456789TJQKA';
 
   function jackpotFor(w) {
     if (w.hand === 'רויאל פלאש') return JACKPOTS[0];
     if (w.cat === 8) return JACKPOTS[1];
     if (w.cat === 7) return JACKPOTS[2];
-    if (w.cat === 6 && w.best) {
-      const n = {};
-      for (const c of w.best) n[c[0]] = (n[c[0]] || 0) + 1;
-      const trips = Object.keys(n).find((r) => n[r] === 3);
-      const pair = Object.keys(n).find((r) => n[r] === 2);
-      if (trips === 'A' && RANK_ORDER.indexOf(pair) >= RANK_ORDER.indexOf('T')) return JACKPOTS[3];
-    }
     return null;
   }
   const STYLE_KEYS = Object.keys(Bot.STYLES);
@@ -251,10 +241,10 @@
     }
 
     highHands(t, res) {
-      if (!res.shown.length || !HIGH_HAND_GAMES.has(t.game.code)) return; // no showdown, or an Omaha table
+      if (!res.shown.length) return; // nobody showed: the hand ended with a fold
       const tr = t.tournament;
       for (const w of res.winners) {
-        if (w.cat == null || w.cat < 4) continue;
+        if (w.cat == null || w.cat < MIN_BONUS_CAT) continue;
         const s = t.seats[w.seat];
         // Your own cards must play: no bonus when the board alone makes the hand.
         if (!s || !w.best || !w.best.some((c) => s.cards.includes(c))) continue;
@@ -710,7 +700,7 @@
 
   function t_log(tr, msg) { if (tr.table) tr.table.addLog(msg); }
 
-  const api = { JACKPOTS, BLIND_CHOICES, Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
+  const api = { MIN_BONUS_CAT, JACKPOTS, BLIND_CHOICES, Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
   if (isNode) module.exports = api;
   else global.PokerLobby = api;
 })(typeof window !== 'undefined' ? window : globalThis);
