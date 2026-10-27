@@ -46,6 +46,9 @@
     { name: 'Big Nine Deepstack', game: 'NLH', maxSeats: 9, buyIn: 2000, startStack: 5000, levelMin: 4 },
   ];
 
+  const PRIVATE_IDLE_MS = 2 * 60 * 60000; // a private table with no friends seated is closed after two hours
+  const BLIND_CHOICES = [[10, 20], [25, 50], [50, 100], [100, 200], [250, 500], [500, 1000]];
+
   const PAYOUTS = { 6: [0.65, 0.35], 9: [0.5, 0.3, 0.2] };
   const AUTO_START_MS = 60000; // after the first friend registers, bots fill the rest and it starts
 
@@ -106,6 +109,7 @@
       this.tables = new Map();
       this.tournaments = new Map();
       this.botSeq = 0;
+      this.privSeq = 0;
       this.usedBotNames = new Set();
       (opts.tables || DEFAULT_TABLES).forEach((t, k) => this.createTable({ id: 't' + (k + 1), ...t }));
       (opts.tournaments || DEFAULT_TOURNAMENTS).forEach((t, k) => {
@@ -240,6 +244,7 @@
 
     // ---- tournaments ----
     tick() {
+      if (Date.now() % 60000 < 1000) this.closeIdlePrivate();
       let changed = false;
       for (const tr of this.tournaments.values()) {
         if (tr.status === 'registering' && tr.startAt && Date.now() >= tr.startAt) { this.startTournament(tr); changed = true; }
@@ -382,7 +387,7 @@
         for (const p of this.players.values()) if (p.tableId === t.id) {
           p.tableId = null;
           this.sendMe(p.id);
-          this.send(p.id, 'lobby', this.lobbyView());
+          this.send(p.id, 'lobby', this.lobbyView(p.id));
         }
       }
       tr.reset();
@@ -417,7 +422,7 @@
       this.sendMe(id);
       const t = p.tableId && this.tables.get(p.tableId);
       if (t) this.send(id, 'table', this.tableView(t, id));
-      else this.send(id, 'lobby', this.lobbyView());
+      else this.send(id, 'lobby', this.lobbyView(id));
       return { ok: true, id };
     }
 
@@ -472,6 +477,7 @@
           if (this.allowRefill && this.chips(id) < 2000 && !p.tableId) { this.bankrolls[id] = START_CHIPS; this.save(); }
           return this.sendMe(id);
         }
+        case 'invite': return this.acceptInvite(id, data.code);
         case 'tregister': return this.tRegister(id, data.id);
         case 'tunregister': return this.tUnregister(id, data.id);
         case 'tstart': return this.tStart(id, data.id);
@@ -484,10 +490,55 @@
       }
     }
 
+    // cfg: { name, game, blinds (index into BLIND_CHOICES), maxSeats, bots }. Returns the table or an error.
+    createPrivate(ownerId, cfg) {
+      cfg = cfg || {};
+      const game = E.GAMES[cfg.game] ? cfg.game : 'NLH';
+      const [sb, bb] = BLIND_CHOICES[Math.max(0, Math.min(BLIND_CHOICES.length - 1, Number(cfg.blinds) || 0))];
+      const maxSeats = Number(cfg.maxSeats) === 9 ? 9 : 6;
+      const bots = Math.max(0, Math.min(maxSeats - 2, Math.round(Number(cfg.bots) || 0)));
+      const name = Lobby.cleanName(cfg.name) || 'השולחן של ' + this.nameOf(ownerId);
+      let code;
+      do code = Math.random().toString(36).slice(2, 8); while ([...this.tables.values()].some((t) => t.code === code));
+      const t = this.createTable({ id: 'p' + (++this.privSeq), name, game, smallBlind: sb, bigBlind: bb, maxSeats, bots });
+      t.private = true;
+      t.code = code;
+      t.owner = ownerId;
+      t.members = new Set([ownerId]);
+      t.lastHumanAt = Date.now();
+      this.watch(ownerId, t.id);
+      this.send(ownerId, 'pcreated', { code, name });
+      this.broadcastLobby();
+      return t;
+    }
+
+    acceptInvite(id, code) {
+      const t = [...this.tables.values()].find((x) => x.private && x.code === String(code || '').trim());
+      if (!t) return this.send(id, 'error', 'השולחן מההזמנה כבר נסגר');
+      t.members.add(id);
+      this.watch(id, t.id);
+    }
+
+    closeIdlePrivate() {
+      const now = Date.now();
+      for (const t of [...this.tables.values()]) {
+        if (!t.private) continue;
+        if (t.seats.some((s) => s && !s.isBot && !s.left)) { t.lastHumanAt = now; continue; }
+        if (now - t.lastHumanAt < PRIVATE_IDLE_MS) continue;
+        if ([...this.players.values()].some((p) => p.tableId === t.id)) continue;
+        for (const s of t.seats) if (s && s.isBot) this.usedBotNames.delete(s.name);
+        t.closed = true;
+        clearTimeout(t.timer);
+        this.tables.delete(t.id);
+        this.broadcastLobby();
+      }
+    }
+
     watch(id, tableId) {
       const p = this.players.get(id);
       const t = this.tables.get(tableId);
       if (!t) return;
+      if (t.private && !t.members.has(id)) return this.send(id, 'error', 'שולחן פרטי: צריך הזמנה');
       if (p.tableId && p.tableId !== tableId) this.leaveTable(id, true);
       p.tableId = tableId;
       const i = t.seatOf(id);
@@ -500,6 +551,7 @@
       const p = this.players.get(id);
       const t = this.tables.get(tableId);
       if (!t) return this.send(id, 'error', 'שולחן לא קיים');
+      if (t.private && !t.members.has(id)) return this.send(id, 'error', 'שולחן פרטי: צריך הזמנה');
       if (t.tournament) return this.watch(id, tableId);
       if (t.seatOf(id) >= 0) return;
       if (p.tableId && p.tableId !== tableId) this.leaveTable(id, true);
@@ -559,14 +611,18 @@
         this.manageBots(t);
       }
       this.sendMe(id);
-      if (!quiet) this.send(id, 'lobby', this.lobbyView());
+      if (!quiet) this.send(id, 'lobby', this.lobbyView(id));
       this.broadcastLobby();
     }
 
     // ---- outbound ----
-    lobbyView() {
+    // A private table only shows up for the friends invited to it.
+    lobbyView(id) {
+      const visible = (t) => !t.tournament && (!t.private || t.members.has(id));
       return {
-        cash: [...this.tables.values()].filter((t) => !t.tournament).map((t) => ({ type: 'cash', ...t.summary() })),
+        cash: [...this.tables.values()].filter(visible)
+          .map((t) => ({ type: 'cash', ...t.summary(), private: !!t.private, code: t.private && t.members.has(id) ? t.code : null }))
+          .sort((a, b) => b.private - a.private),
         tournaments: [...this.tournaments.values()].map((tr) => tr.summary()),
       };
     }
@@ -575,12 +631,12 @@
       const v = t.view(id);
       if (t.tournament) v.tournament = t.tournament.info();
       v.leaders = this.leaders(t);
+      if (t.private) { v.private = true; v.code = t.code; }
       return v;
     }
 
     broadcastLobby() {
-      const v = this.lobbyView();
-      for (const p of this.players.values()) if (!p.tableId) this.send(p.id, 'lobby', v);
+      for (const p of this.players.values()) if (!p.tableId) this.send(p.id, 'lobby', this.lobbyView(p.id));
     }
 
     toTable(t, ev, data) {
@@ -596,7 +652,7 @@
 
   function t_log(tr, msg) { if (tr.table) tr.table.addLog(msg); }
 
-  const api = { Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
+  const api = { BLIND_CHOICES, Lobby, Tournament, DEFAULT_TABLES, DEFAULT_TOURNAMENTS, LEVELS, START_CHIPS };
   if (isNode) module.exports = api;
   else global.PokerLobby = api;
 })(typeof window !== 'undefined' ? window : globalThis);

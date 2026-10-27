@@ -74,6 +74,7 @@
     <div class="table-list" id="table-list"></div>
     <div class="table-list hidden" id="tour-list"></div>
     <div class="lobby-foot">
+      <button id="pcreate-btn" class="btn btn-primary hidden">➕ שולחן פרטי לחברים</button>
       <button id="refill" class="btn btn-ghost hidden">מלא מחדש את הקופה</button>
       <span class="muted small">לחץ על העיגול ליד השם שלך כדי להעלות תמונה. השולחנות פעילים מסביב לשעון, וחלק מהשחקנים הם שחקני AI של הבית.</span>
     </div>
@@ -85,6 +86,7 @@
       <button id="back" class="btn btn-ghost">→ לובי</button>
       <div id="table-title" class="table-title"></div>
       <div class="table-bar-actions">
+        <button id="invite-btn" class="btn btn-primary hidden">📨 הזמן חברים</button>
         <button id="rebuy" class="btn btn-ghost">הוסף צ'יפים</button>
         <button id="sit" class="btn btn-primary hidden">שב לשחק</button>
       </div>
@@ -139,6 +141,29 @@
     <div class="modal-card admin-card">
       <div class="admin-head"><h3>ניהול חברים</h3><button class="icon-btn" id="admin-close">✕</button></div>
       <div id="admin-list" class="admin-list"></div>
+    </div>
+  </div>
+
+  <!-- Private table setup -->
+  <div id="pmodal" class="modal hidden">
+    <div class="modal-card">
+      <h3>שולחן פרטי לחברים</h3>
+      <form id="pform" class="pform">
+        <label>שם השולחן<input id="p-name" maxlength="16" placeholder="למשל: חמישי בערב"></label>
+        <label>משחק<select id="p-game">
+          <option value="NLH">טקסס הולדם</option><option value="PLO4">אומהה 4</option>
+          <option value="PLO5">אומהה 5</option><option value="PLO6">אומהה 6</option></select></label>
+        <label>בליינדים<select id="p-blinds"></select></label>
+        <label>מקומות<select id="p-seats"><option value="6">6</option><option value="9">9</option></select></label>
+        <label>שחקני בית (AI) שימלאו מקומות<select id="p-bots">
+          <option value="0">בלי</option><option value="1">1</option><option value="2" selected>2</option>
+          <option value="3">3</option><option value="4">4</option></select></label>
+        <div class="muted small">אחרי הפתיחה לוחצים "הזמן חברים" ושולחים את הקישור. רק מי שקיבל אותו רואה את השולחן.</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="p-cancel">ביטול</button>
+          <button type="submit" class="btn btn-primary">פתח שולחן</button>
+        </div>
+      </form>
     </div>
   </div>
 

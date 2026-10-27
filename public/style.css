@@ -270,3 +270,9 @@ html, body { overflow-x: hidden; }
 .lead td:nth-child(3), .lead td:nth-child(4) { direction: ltr; text-align: end; }
 .lead tr.me td { color: var(--gold); }
 .hh-table { margin-top: 10px; line-height: 1.5; }
+
+/* private tables */
+.trow.private { border-color: rgba(242,193,78,.45); }
+.pform { display: grid; gap: 10px; }
+.pform label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.pform input, .pform select { background: var(--panel); color: var(--text, #fff); border: 1px solid var(--line); border-radius: 8px; padding: 9px; font: inherit; }

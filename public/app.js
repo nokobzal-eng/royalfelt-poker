@@ -57,6 +57,7 @@
       on: (e, f) => (handlers[e] = handlers[e] || []).push(f),
       emit(e, d) {
         if (!myId) return;
+        if (e === 'pcreate') return lobby.createPrivate(myId, d);
         if (e === 'avatar') { lobby.setAvatar(myId, d); return lobby.sendMe(myId); }
         lobby.handle(myId, e, d);
       },
@@ -80,7 +81,14 @@
   muteBtn.addEventListener('click', () => { window.FX.setMuted(!window.FX.isMuted()); syncMute(); window.FX.play('chip'); });
   syncMute();
 
-  conn.on('me', (m) => { me = m; renderTop(); route(); });
+  conn.on('me', (m) => {
+    me = m;
+    renderTop();
+    route();
+    // Opened from an invite link: go straight to that table.
+    const code = load('rf_invite');
+    if (code) { keep('rf_invite', ''); conn.emit('invite', { code }); }
+  });
   conn.on('lobby', (l) => { lobbyData = l; renderLobby(); });
   conn.on('table', (v) => {
     if (!view || view.id !== v.id) chatLines = [];
@@ -106,6 +114,7 @@
       window.FX.play('big');
     }, 2600);
   });
+  conn.on('pcreated', (d) => { window.FX.play('win'); toast(`השולחן "${d.name}" נפתח. לחץ "הזמן חברים" ושלח את הקישור`); });
   conn.on('tstart', (d) => { window.FX.play('allin'); toast(`הטורניר ${d.name} מתחיל! בהצלחה`); });
   conn.on('tlevel', (d) => {
     if (view && view.tournament) window.FX.banner($('table-wrap'), `רמה ${d.level}`, `בליינדים ${fmt(d.sb)}/${fmt(d.bb)}`, '');
@@ -131,6 +140,10 @@
   const online = conn.mode === 'online';
   const load = (k) => { try { return storage().getItem(k); } catch (e) { return null; } };
   const keep = (k, v) => { try { storage().setItem(k, v); } catch (e) { /* storage unavailable */ } };
+  if (params.get('t')) {
+    keep('rf_invite', params.get('t'));
+    history.replaceState(null, '', location.pathname);
+  }
   if (!online) {
     $('login-phone').classList.add('hidden');
     $('login-note').classList.add('hidden');
@@ -156,6 +169,7 @@
       if (r.status === 'blocked') { show('login'); $('login-err').textContent = 'הגישה שלך חסומה'; return; }
       isAdmin = !!r.isAdmin;
       $('admin-btn').classList.toggle('hidden', !isAdmin);
+      if (me) renderTop();
       $('login-err').textContent = '';
     });
   }
@@ -181,7 +195,11 @@
 
   function route() {
     if (!me) return;
-    if (me.tableId && view && view.id === me.tableId) show('table-screen');
+    if (me.tableId && view && view.id === me.tableId) {
+      // The table can arrive just before we learn we sit there: draw it now.
+      if ($('table-screen').classList.contains('hidden')) renderTable();
+      show('table-screen');
+    }
     else if (!me.tableId) show('lobby');
   }
 
@@ -191,6 +209,7 @@
     $('me-name').textContent = me ? me.name : '';
     $('me-pic').classList.toggle('hidden', !me);
     if (me) $('me-pic').innerHTML = avatarHtml(me.name, me.avatar);
+    $('pcreate-btn').classList.toggle('hidden', !me || (online && !isAdmin));
     $('refill').textContent = online ? 'בקש צ\'יפים מהמנהל' : 'מלא מחדש את הקופה';
     $('refill').classList.toggle('hidden', !me || me.chips >= 2000);
   }
@@ -243,8 +262,8 @@
     const rows = lobbyData.cash.filter((t) => filter === 'all' || t.game === filter);
     $('table-list').innerHTML = rows.map((t) => {
       const bar = Array.from({ length: t.maxSeats }, (_, i) => `<i class="${i < t.players ? 'human' : ''}"></i>`).join('');
-      return `<div class="trow">
-        <div class="trow-top"><span class="tname">${esc(t.name)}</span><span class="gtag ${t.game}">${t.gameLabel}</span></div>
+      return `<div class="trow${t.private ? ' private' : ''}">
+        <div class="trow-top"><span class="tname">${t.private ? '🔒 ' : ''}${esc(t.name)}</span><span class="gtag ${t.game}">${t.gameLabel}</span></div>
         <div class="tstats">
           <div>בלינדים<b>${fmt(t.smallBlind)}/${fmt(t.bigBlind)}</b></div>
           <div>שחקנים<b>${t.players}/${t.maxSeats}</b></div>
@@ -253,6 +272,7 @@
         <div class="seatbar">${bar}</div>
         <div class="muted small">באי־אין ${fmt(t.minBuyIn)}–${fmt(t.maxBuyIn)} · 🎁 מיסטרי באונטי · 💥 ג'קפוט נוקאאוט</div>
         <div class="trow-actions">
+          ${t.code ? `<button class="btn btn-ghost" data-invite="${t.code}" data-iname="${esc(t.name)}">📨 הזמן</button>` : ''}
           <button class="btn btn-ghost" data-watch="${t.id}">צפה</button>
           <button class="btn btn-primary" data-join="${t.id}">שב לשחק</button>
         </div>
@@ -299,6 +319,8 @@
     const r = e.target.closest('[data-treg]');
     const u = e.target.closest('[data-tunreg]');
     const st = e.target.closest('[data-tstart]');
+    const inv = e.target.closest('[data-invite]');
+    if (inv) return shareInvite(inv.dataset.invite, inv.dataset.iname);
     if (w) conn.emit('watch', { tableId: w.dataset.watch });
     if (r) { window.FX.play('chip'); conn.emit('tregister', { id: r.dataset.treg }); }
     if (u) conn.emit('tunregister', { id: u.dataset.tunreg });
@@ -307,6 +329,31 @@
   }
   $('table-list').addEventListener('click', lobbyClick);
   $('tour-list').addEventListener('click', lobbyClick);
+
+  // ---------- private tables ----------
+  $('p-blinds').innerHTML = window.PokerLobby.BLIND_CHOICES.map(([sb, bb], k) =>
+    `<option value="${k}"${k === 1 ? ' selected' : ''}>${fmt(sb)}/${fmt(bb)}</option>`).join('');
+  $('pcreate-btn').addEventListener('click', () => $('pmodal').classList.remove('hidden'));
+  $('p-cancel').addEventListener('click', () => $('pmodal').classList.add('hidden'));
+  $('pform').addEventListener('submit', (e) => {
+    e.preventDefault();
+    $('pmodal').classList.add('hidden');
+    conn.emit('pcreate', {
+      name: $('p-name').value, game: $('p-game').value, blinds: Number($('p-blinds').value),
+      maxSeats: Number($('p-seats').value), bots: Number($('p-bots').value),
+    });
+  });
+  $('invite-btn').addEventListener('click', () => view && view.code && shareInvite(view.code, view.name));
+
+  // Phones open the share sheet (WhatsApp etc.); elsewhere the link is copied.
+  async function shareInvite(code, name) {
+    const url = `${location.origin}${location.pathname}?t=${code}`;
+    const text = `בוא לשחק איתי פוקר בשולחן "${name}" 🃏`;
+    if (navigator.share) {
+      try { await navigator.share({ title: 'RoyalFelt Poker', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('קישור ההזמנה הועתק. הדבק אותו בוואטסאפ'); } catch (e) { prompt('העתק את קישור ההזמנה:', url); }
+  }
 
   // ---------- buy-in / rebuy modal ----------
   let modalOk = null;
@@ -444,6 +491,7 @@
     const tr = v.tournament;
     $('sit').classList.toggle('hidden', v.mySeat >= 0 || !!tr);
     $('rebuy').classList.toggle('hidden', v.mySeat < 0 || !!tr);
+    $('invite-btn').classList.toggle('hidden', !v.private);
     $('tour-hud').classList.toggle('hidden', !tr);
     if (tr) {
       tourHudUntil = Date.now() + tr.levelLeftMs;

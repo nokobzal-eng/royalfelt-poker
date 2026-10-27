@@ -137,7 +137,13 @@ io.on('connection', (socket) => {
     socket.emit('error', 'הבקשה נשלחה למנהל');
   });
 
-  for (const ev of ['join', 'watch', 'leave', 'action', 'back', 'rebuy', 'chat', 'tregister', 'tunregister', 'tstart']) {
+  // Private tables are set up by the admin, who sends friends an invite link.
+  socket.on('pcreate', (cfg) => {
+    if (!user || !user.isAdmin) return socket.emit('error', 'רק המנהל יכול לפתוח שולחן פרטי');
+    lobby.createPrivate(playerId, cfg);
+  });
+
+  for (const ev of ['join', 'watch', 'leave', 'action', 'back', 'rebuy', 'chat', 'invite', 'tregister', 'tunregister', 'tstart']) {
     socket.on(ev, (data) => { if (playerId) lobby.handle(playerId, ev, data); });
   }
 
