@@ -43,6 +43,7 @@
       <div id="login-err" class="err"></div>
       <p class="muted small" id="login-note">כניסה רק לחברים שאושרו. אחרי ההרשמה הבקשה מגיעה למנהל לאישור.</p>
       <button id="pin-toggle" class="link-btn small hidden">כניסת מנהל ממכשיר חדש</button>
+      <button class="btn btn-ghost install-btn hidden" data-install>📲 התקן כאפליקציה בפלאפון</button>
     </div>
   </section>
 
@@ -78,6 +79,7 @@
     <div class="table-list" id="table-list"></div>
     <div class="table-list hidden" id="tour-list"></div>
     <div class="lobby-foot">
+      <button class="btn btn-ghost install-btn hidden" data-install>📲 התקן אפליקציה</button>
       <button id="pcreate-btn" class="btn btn-primary hidden">➕ שולחן פרטי לחברים</button>
       <button id="refill" class="btn btn-ghost hidden">מלא מחדש את הקופה</button>
       <span class="muted small">לחץ על העיגול ליד השם שלך כדי להעלות תמונה. השולחנות פעילים מסביב לשעון, וחלק מהשחקנים הם שחקני AI של הבית.</span>
@@ -147,6 +149,15 @@
     <div class="modal-card admin-card">
       <div class="admin-head"><h3>ניהול חברים</h3><button class="icon-btn" id="admin-close">✕</button></div>
       <div id="admin-list" class="admin-list"></div>
+    </div>
+  </div>
+
+  <!-- How to install on iPhone / from inside WhatsApp -->
+  <div id="install-help" class="modal hidden">
+    <div class="modal-card">
+      <h3>📲 התקנה כאפליקציה</h3>
+      <div id="install-steps"></div>
+      <div class="modal-actions"><button class="btn btn-primary" id="install-close">הבנתי</button></div>
     </div>
   </div>
 

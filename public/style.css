@@ -309,3 +309,24 @@ html, body { overflow-x: hidden; }
 }
 /* your own cards sit fully above your plate so nothing covers them */
 .seat.me .hole { margin-bottom: 3px; }
+/* Showdown and your own hand: every card is laid out on its own, side by side, never overlapping.
+   Five and six card Omaha hands go on two rows of three so the seat stays narrow. */
+.seat.shown .hole, .seat.me .hole { display: grid; grid-auto-flow: column; gap: 3px; justify-content: center; }
+.seat.shown .hole .card, .seat.me .hole .card { margin: 0 !important; }
+.seat.shown .hole.n5, .seat.shown .hole.n6, .seat.me .hole.n5, .seat.me .hole.n6 { grid-auto-flow: row; grid-template-columns: repeat(3, auto); }
+.seat.shown .hole .card { width: 40px; height: 56px; }
+.seat.shown .hole.n4 .card { width: 36px; height: 50px; }
+@media (max-width: 900px) {
+  .seat.shown .hole .card, .seat.me .hole .card { width: 30px; height: 42px; }
+  .seat.shown .hole .card .r, .seat.me .hole .card .r { font-size: 14px; }
+  .seat.shown .hole .card .su, .seat.me .hole .card .su { font-size: 12px; }
+  .seat.shown .hole.n4 .card, .seat.me .hole.n4 .card { width: 27px; height: 39px; }
+  .seat.shown .hole.n4 .card .r, .seat.me .hole.n4 .card .r { font-size: 13px; }
+  .seat.shown .hole, .seat.me .hole { gap: 2px; }
+}
+.seat.up.shown { flex-direction: column-reverse; }
+.seat.up.shown .hole { margin: 4px 0 0; }
+.seat.up.shown .sd-hand { margin: 3px 0 0; }
+
+.install-btn { margin-top: 10px; }
+#install-steps ol { padding-inline-start: 20px; line-height: 1.9; }

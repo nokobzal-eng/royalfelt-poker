@@ -1,4 +1,6 @@
 {
+ "id": "/",
+ "scope": "/",
  "name": "Royal Felt Poker",
  "short_name": "RoyalFelt",
  "start_url": "/",
@@ -20,5 +22,6 @@
    "type": "image/png",
    "purpose": "any maskable"
   }
- ]
+ ],
+ "description": "פוקר בין חברים: הולדם ואומהה, קאש וטורנירים"
 }

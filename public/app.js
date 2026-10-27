@@ -366,6 +366,42 @@
     try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('קישור ההזמנה הועתק. הדבק אותו בוואטסאפ'); } catch (e) { prompt('העתק את קישור ההזמנה:', url); }
   }
 
+  // ---------- install as an app ----------
+  // Android/Chrome: a real install prompt. iPhone: Safari can only add to the home screen by hand, so show the steps.
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const inAppBrowser = /WhatsApp|FBAN|FBAV|Instagram|Line\//.test(ua);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isPhone = isIOS || /Android/.test(ua);
+  let installEvent = null;
+  const showInstall = (on) => document.querySelectorAll('[data-install]').forEach((b) => b.classList.toggle('hidden', !on));
+  showInstall(online && !standalone && isPhone);
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; if (!standalone) showInstall(true); });
+  window.addEventListener('appinstalled', () => { showInstall(false); toast('האפליקציה הותקנה! אפשר לפתוח אותה מהמסך הראשי'); });
+  function installHelp(html) { $('install-steps').innerHTML = html; $('install-help').classList.remove('hidden'); }
+  $('install-close').addEventListener('click', () => $('install-help').classList.add('hidden'));
+  document.querySelectorAll('[data-install]').forEach((b) => b.addEventListener('click', async () => {
+    if (installEvent) {
+      installEvent.prompt();
+      const r = await installEvent.userChoice.catch(() => null);
+      if (r && r.outcome === 'accepted') showInstall(false);
+      installEvent = null;
+      return;
+    }
+    if (inAppBrowser) {
+      return installHelp(`<p>הקישור נפתח בתוך וואטסאפ, ומשם אי אפשר להתקין.</p><ol>
+        <li>לחץ על <b>⋮</b> (או ⋯) למעלה</li><li>בחר <b>${isIOS ? 'פתח בספארי' : 'פתח בכרום'}</b></li>
+        <li>בדף שנפתח לחץ שוב על "התקן אפליקציה"</li></ol>`);
+    }
+    if (isIOS) {
+      return installHelp(`<ol><li>פתח את האתר ב<b>ספארי</b></li>
+        <li>לחץ על כפתור השיתוף <b>⬆️</b> בתחתית המסך</li>
+        <li>גלול ובחר <b>"הוסף למסך הבית"</b></li><li>לחץ <b>"הוסף"</b>. האייקון ♠ יופיע במסך הבית</li></ol>`);
+    }
+    installHelp(`<ol><li>פתח את האתר ב<b>כרום</b></li><li>לחץ על <b>⋮</b> למעלה מימין</li>
+      <li>בחר <b>"התקנת אפליקציה"</b> או <b>"הוספה למסך הבית"</b></li></ol>`);
+  }));
+
   // ---------- buy-in / rebuy modal ----------
   let modalOk = null;
   function openModal(title, min, max, def, ok) {
@@ -545,6 +581,7 @@
       if (winners.has(i)) cls.push('winner');
       const shownHand = showdown && v.lastResult.shown.find((x) => x.seat === i);
       if (shownHand) cls.push('shown');
+      if (p.y < 40) cls.push('up'); // seats along the top edge show their cards below the name, toward the felt
       let tag = '';
       const win = showdown && v.lastResult.winners.find((w) => w.seat === i);
       if (shownHand) tag = ''; // the hand label above the plate says it all
