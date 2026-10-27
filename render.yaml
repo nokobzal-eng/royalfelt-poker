@@ -1,0 +1,20 @@
+# Render Blueprint: one web service with a small disk for members and bankrolls.
+services:
+  - type: web
+    name: royalfelt-poker
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: ADMIN_PHONE
+        sync: false
+      - key: ADMIN_PIN
+        sync: false
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1

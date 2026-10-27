@@ -1,0 +1,19 @@
+{
+  "name": "royalfelt-poker",
+  "version": "1.0.0",
+  "description": "Texas Hold'em and Omaha (4/5/6) play-money poker with strong bots",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/sim.js 25 && node test/tournament.js",
+    "build:demo": "node scripts/build-demo.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.22.3",
+    "socket.io": "^4.8.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Royal Felt Poker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" dir="rtl" lang="he">
+  <header class="topbar">
+    <div class="brand"><span class="logo">♠</span> Royal<b>Felt</b></div>
+    <div class="top-right">
+      <button id="admin-btn" class="btn btn-ghost admin-btn hidden">ניהול <span id="admin-badge" class="badge hidden">0</span></button>
+      <button id="mute" class="icon-btn" title="צלילים">🔊</button>
+      <div id="wallet" class="wallet hidden"><span class="chip-ico"></span><span id="wallet-amt">0</span></div>
+      <span id="me-name" class="me-name"></span>
+    </div>
+  </header>
+
+  <!-- Login -->
+  <section id="login" class="screen">
+    <div class="login-card">
+      <div class="login-logo">♠ ♥ ♦ ♣</div>
+      <h1>Royal<b>Felt</b> Poker</h1>
+      <p class="muted">הולדם ואומהה בין חברים, עם בוטים ברמה גבוהה. צ'יפים וירטואליים בלבד.</p>
+      <form id="login-form">
+        <input id="login-name" maxlength="16" placeholder="הכינוי שלך" autocomplete="nickname" required>
+        <input id="login-phone" type="tel" inputmode="tel" maxlength="20" placeholder="מספר טלפון" autocomplete="tel" dir="ltr">
+        <input id="login-pin" type="password" maxlength="20" placeholder="קוד מנהל" class="hidden" dir="ltr">
+        <button class="btn btn-primary" type="submit">כניסה</button>
+      </form>
+      <div id="login-err" class="err"></div>
+      <p class="muted small" id="login-note">כניסה רק לחברים שאושרו. אחרי ההרשמה הבקשה מגיעה למנהל לאישור.</p>
+      <button id="pin-toggle" class="link-btn small hidden">כניסת מנהל ממכשיר חדש</button>
+    </div>
+  </section>
+
+  <!-- Waiting for approval -->
+  <section id="pending" class="screen hidden">
+    <div class="login-card">
+      <div class="pending-ico">⏳</div>
+      <h2>הבקשה נשלחה</h2>
+      <p class="muted" id="pending-text">המנהל צריך לאשר את הכניסה שלך. הדף ייכנס אוטומטית ברגע שתאושר.</p>
+      <button id="pending-back" class="btn btn-ghost">חזרה</button>
+    </div>
+  </section>
+
+  <!-- Lobby -->
+  <section id="lobby" class="screen hidden">
+    <div class="lobby-head">
+      <div class="tabs mode-tabs" id="mode-tabs">
+        <button data-m="cash" class="tab active">קאש</button>
+        <button data-m="tour" class="tab">טורנירים</button>
+      </div>
+      <div class="tabs" id="game-tabs">
+        <button data-f="all" class="tab active">הכל</button>
+        <button data-f="NLH" class="tab">הולדם</button>
+        <button data-f="PLO4" class="tab">PLO4</button>
+        <button data-f="PLO5" class="tab">PLO5</button>
+        <button data-f="PLO6" class="tab">PLO6</button>
+      </div>
+    </div>
+    <div class="table-list" id="table-list"></div>
+    <div class="table-list hidden" id="tour-list"></div>
+    <div class="lobby-foot">
+      <button id="refill" class="btn btn-ghost hidden">מלא מחדש את הקופה</button>
+      <span class="muted small">🤖 מסמן בוט. הבוטים תמיד יושבים בשולחנות ומפנים מקום כשחברים מצטרפים.</span>
+    </div>
+  </section>
+
+  <!-- Table -->
+  <section id="table-screen" class="screen hidden">
+    <div class="table-bar">
+      <button id="back" class="btn btn-ghost">→ לובי</button>
+      <div id="table-title" class="table-title"></div>
+      <div class="table-bar-actions">
+        <button id="rebuy" class="btn btn-ghost">הוסף צ'יפים</button>
+        <button id="sit" class="btn btn-primary hidden">שב לשחק</button>
+      </div>
+    </div>
+    <div class="table-layout">
+      <div class="table-area">
+        <div class="table-wrap" id="table-wrap">
+          <div class="tour-hud hidden" id="tour-hud"></div>
+          <div class="felt">
+            <div class="felt-logo">Royal<b>Felt</b></div>
+            <div class="pot" id="pot"></div>
+            <div class="board" id="board"></div>
+            <div class="hand-info" id="hand-info"></div>
+          </div>
+          <div id="seats"></div>
+        </div>
+        <div class="action-bar" id="action-bar"></div>
+      </div>
+      <aside class="side">
+        <div class="tabs side-tabs">
+          <button class="tab active" data-p="log">היסטוריה</button>
+          <button class="tab" data-p="chat">צ'אט</button>
+        </div>
+        <div class="panel" id="panel-log"></div>
+        <div class="panel hidden" id="panel-chat">
+          <div id="chat-msgs" class="chat-msgs"></div>
+          <form id="chat-form"><input id="chat-input" maxlength="200" placeholder="כתוב הודעה..."></form>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- Buy-in modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="modal-title"></h3>
+      <div class="buyin-row">
+        <input type="range" id="buyin-range">
+        <input type="number" id="buyin-num">
+      </div>
+      <div class="muted small" id="buyin-limits"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="modal-cancel">ביטול</button>
+        <button class="btn btn-primary" id="modal-ok">אישור</button>
+      </div>
+    </div>
+  </div>
+  <!-- Admin panel -->
+  <div id="admin" class="modal hidden">
+    <div class="modal-card admin-card">
+      <div class="admin-head"><h3>ניהול חברים</h3><button class="icon-btn" id="admin-close">✕</button></div>
+      <div id="admin-list" class="admin-list"></div>
+    </div>
+  </div>
+
+  <!-- Tournament result -->
+  <div id="tres" class="modal hidden">
+    <div class="modal-card tres-card">
+      <div class="tres-place" id="tres-place"></div>
+      <div id="tres-text"></div>
+      <div class="modal-actions"><button class="btn btn-primary" id="tres-ok">ללובי</button></div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<script src="/socket.io/socket.io.js" onerror="window.__noServer=true"></script>
+<script src="/shared/engine.js"></script>
+<script src="/shared/bot.js"></script>
+<script src="/shared/lobby.js"></script>
+<script src="fx.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
